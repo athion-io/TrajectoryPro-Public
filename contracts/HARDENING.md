@@ -135,6 +135,8 @@ URL. The protocol says the key travels in `X-API-Key` and that
   `headers.Authorization = Bearer <apiKey>`. (The brief cites
   `capabilities.ts:24` and `commands.ts:31`; those match. `instances.ts` has
   the same line at 24.)
+- `MissionAutopilotTester/src/features/upload/EnvirXUploader.tsx:40` — the
+  management upload also sends `Authorization: Bearer <apiKey>`.
 - `MissionAutopilotTester/src/store/use-instance-stream.ts:100` — appends
   `?token=<apiKey>` to the event-stream URL.
 - `MissionAutopilotTester/src/features/connection-bar/ConnectionModal.tsx:112`
@@ -142,11 +144,12 @@ URL. The protocol says the key travels in `X-API-Key` and that
 - `docs/REST_Protocol.md:43-46` — `X-API-Key: <secret>`;
   `docs/REST_Protocol.md:60` — "The `Authorization` header is reserved for
   future bearer/OAuth flows."
-- Why it works today: `MissionAutopilot/packages/server/src/middleware/auth.ts:28-44`
-  (`extractKey`) accepts `x-api-key` (29-30), `Authorization: Bearer`
-  (32-37) **and** `?token=` on GET event-stream paths (39-43, path regex at
-  line 26). `MissionAutopilot/packages/server/src/index.ts:183-184` redacts
-  `?token=` from access logs, which shows the leak was known.
+- Why it works today: `MissionAutopilot/packages/server/src/middleware/auth.ts:29-44`
+  (`extractKey`) accepts `x-api-key` (30-31), `Authorization: Bearer`
+  (33-37) **and** `?token=` on GET event-stream paths (39-43, path regex at
+  line 27 with its comment at 26).
+  `MissionAutopilot/packages/server/src/index.ts:183-184` redacts `?token=`
+  from access logs, which shows the leak was known.
 
 **risk** — Tokens in query strings end up in proxy logs, browser history and
 referrer headers. The reference container accepting `Authorization` means
@@ -165,7 +168,7 @@ accepting `?token=` once the Tester is fixed, and either stop accepting
 `Authorization: Bearer …` MUST NOT be authenticated). Limitation to be aware
 of: agt-003 sends a **bogus** bearer value, so it catches a server that
 authenticates any bearer; it cannot detect a server that honours a *correct*
-key sent as a bearer, which is what `auth.ts:32-37` does. The reference
+key sent as a bearer, which is what `auth.ts:33-37` does. The reference
 container therefore passes agt-003 while still being over-accepting relative
 to REST §1.3. There is no fixture for `?token=` (no runtime check possible
 without the real key in the URL).
@@ -207,9 +210,10 @@ code. Decision D8 names `INSTANCE_ERROR`; the reference already uses
 and update REST §3.2 / REST-05 and the C-AGT-7 table so that it is a MUST,
 not IMPL-DEFINED.
 
-**contract hook** — agt-021 (IMPL-DEFINED, C-AGT-7 §7, D8): accepts any 4xx
-or 5xx with an error envelope today. Once pinned it becomes a MUST on 409 and
-the chosen code.
+**contract hook** — agt-021 (IMPL-DEFINED, C-AGT-7 §7, D8): passes only on
+`409` with an `error.code` present, notes on any `500-599` (the D8 variance),
+and fails on any other status. Once pinned it becomes a MUST on 409 and the
+chosen code.
 
 ## 5. No client idempotency key on invoke
 
@@ -226,7 +230,7 @@ instance.
   (`git grep -i idempot 20c12ab -- docs` → no hits).
 - `MissionAutopilot/packages/engine/src/instance-manager/instance-manager.ts:433-467`
   — `invoke()` always creates a new instance (`instanceRepo.create`, line
-  454); nothing looks up an existing instance by `workflow_instance_id` /
+  455); nothing looks up an existing instance by `workflow_instance_id` /
   `step_instance_id` first.
 - `MissionAutopilot/packages/server/src/routes/protocol.ts:207-217` — the
   invoke body validator lists the accepted fields; none is an idempotency
@@ -239,8 +243,8 @@ outbound-only door (C-RLY) the retry is the normal path, not the exception
 **proposal** — v1.1 adds an optional `Idempotency-Key` request header. When
 present, a container MUST return the same `instance_id` (and `201`) for a
 repeat with the same key within a retention window. When absent, the door's
-derived key — `(workflow_instance_id, step_instance_id, step_oid)` — is the
-fallback, which is what D9 and C-RLY-2 already describe.
+derived key — `(environment_oid, workflow_instance_id, step_instance_id,
+action)` — is the fallback, which is what D9 and C-RLY-2 already describe.
 
 **contract hook** — agt-015 (IMPL-DEFINED, C-AGT-5 §5, D9: repeat invoke →
 201, same or new id) and rly-002 (SHOULD, C-RLY-2 §13: repeat invoke with the
@@ -339,8 +343,10 @@ status, the error code, or whether it simply streams nothing.
   — the events route checks only that the instance exists (404
   `INSTANCE_NOT_FOUND` at 115-120) and then opens a stream for **any**
   instance; there is no opaque check (`git grep -i opaque` on
-  `packages/server/src/routes` → no hits). So the reference streams for
-  opaque instances rather than refusing.
+  `packages/server/src/routes/commands.ts` → no hits; the only `opaque`
+  mentions under `routes/` are in `management.ts` and `export-import.ts`,
+  which do not serve the events route). So the reference streams for opaque
+  instances rather than refusing.
 
 **risk** — Low. A runtime cannot tell "this is opaque, poll instead" from
 "this stream is broken" without reading capabilities first.
