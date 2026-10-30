@@ -17,16 +17,16 @@
 // Number-to-String algorithm, which the RFC adopts; strings escape only what
 // RFC 8785 3.2.2.2 lists; object keys sort by UTF-16 code units.
 //
-// Two deliberate restrictions beyond the RFC keep every implementation
-// language honest about the same bytes: integers outside ±(2^53-1) are
-// refused (I-JSON, RFC 7493) — and since every double with |n| >= 2^53 is a
-// whole number, that refuses 1e+21 and 1.7976931348623157e+308 as well — and
-// lone surrogates are refused rather than escaped. `undefined`, functions, symbols and bigints have no JSON form and
-// are refused too.
+// Every finite double is rendered, including values beyond 2^53 (1e+20 is
+// "100000000000000000000", 1e+21 is "1e+21"), because the primitives golden
+// vectors (audit-trail/fixtures/vectors/audit-vectors.json) render them and
+// the runner must hash a trail to the same bytes as the runtime that wrote
+// it. One deliberate restriction beyond the RFC remains: lone surrogates are
+// refused rather than escaped. `undefined`, functions, symbols and bigints
+// have no JSON form and are refused too.
 
 import { createHash } from 'node:crypto';
 
-const MAX_SAFE = Number.MAX_SAFE_INTEGER;
 const DIGEST_RE = /^(?:sha256:)?([0-9a-f]{64})$/i;
 
 /**
@@ -105,9 +105,6 @@ function write(value, out, path) {
 function numberText(n, path) {
   if (Number.isNaN(n)) throw new RangeError(`canonicalize: NaN at ${path} is not finite`);
   if (!Number.isFinite(n)) throw new RangeError(`canonicalize: Infinity at ${path} is not finite`);
-  if (Number.isInteger(n) && Math.abs(n) > MAX_SAFE) {
-    throw new RangeError(`canonicalize: integer at ${path} is outside the safe range (|n| > 2^53-1)`);
-  }
   return Object.is(n, -0) ? '0' : String(n);
 }
 

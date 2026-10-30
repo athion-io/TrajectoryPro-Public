@@ -1,0 +1,2 @@
+# Golden bytes from primitives: never convert line endings on checkout.
+* -text

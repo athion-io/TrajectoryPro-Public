@@ -423,21 +423,51 @@ not do.
 
 ## 11. Primitives vs JCS canonicalisation
 
-**Severity: pending Task 13**
+**Severity: L (proposed; Marsha to confirm) — one difference found, fixed
+in the runner, closed**
 
-**what** — Placeholder. Task 13 compares the hash primitives used by the
-contracts (`contracts/runner/src/jcs.mjs`, JCS per RFC 8785) against the
-repository's own canonicalisation helpers and records any difference in
-output for the same input.
+**what** — Twelve golden vectors (`{input, canonical, hash}`) were generated
+by the Athion canonicalisation primitives (recipe `athion-canon/2`,
+primitives commit `c115860f6f1f75a270dc20181e0580f000fa3154`) and replayed
+through the runner's `contracts/runner/src/jcs.mjs`. Ten matched byte for
+byte at once. Two did not: `number-large` (`1e+20`, `1e+21`) and
+`event-linked-unicode-numbers` (a payload holding `1e+21`). The primitives
+render them exactly as RFC 8785 says (`100000000000000000000` and `1e+21`,
+the ECMAScript `Number::toString` form); the runner refused every number
+with `|n| > 2^53-1` outright, a restriction it had taken from I-JSON
+(RFC 7493) that the RFC itself does not impose. After the restriction was
+removed all twelve vectors match, canonical string and digest, and the
+three event vectors chain (`prev_hash` of each equals the recomputed hash
+of the one before; the genesis `prev_hash` is `""`, as C-AUD-4 says).
 
-**where** — *pending Task 13.*
+**where** — `contracts/audit-trail/fixtures/vectors/audit-vectors.json`
+(SHA-256 `0aa401b8322fa54aa29d13bafd819bfb1beef10845e5ecf48461953aaf43eaaa`,
+copied unchanged from the generator's output) and
+`contracts/runner/src/jcs.mjs` (`numberText`). Nothing in the reference
+container or the protocol document is involved: the reference does not
+hash audit events at `20c12ab`.
 
-**risk / proposal** — *pending Task 13.* If no difference is found this
-finding is closed as "none found".
+**risk** — With the restriction in place, a trail whose payload carried a
+large number (a flow total, a timestamp in nanoseconds, a serial) would hash
+fine in the runtime and then be refused as "not events" by the runner, so a
+good trail could never be verified and a tampered one could hide behind the
+refusal. With it removed, the runner and the primitives agree on every
+vector; the remaining risk is a third implementation that prints large
+doubles differently (for example `1e+20` instead of
+`100000000000000000000`). The vectors now pin that case, so such an
+implementation fails C-AUD-3 visibly instead of silently.
 
-**contract hook** — *pending Task 13.*
+**proposal** — None for the protocol. Implementers who write their own
+canonicaliser should run it against `audit-vectors.json` before trusting
+their hashes; the file is the shared truth for the number cases. A runtime
+that wants to avoid the question entirely can keep payload numbers within
+±(2^53-1), but that is advice, not a clause.
 
-> Task 13 updates this section. Until then it is intentionally empty.
+**contract hook** — `contracts/runner/test/jcs.test.mjs`, "golden vectors
+from primitives": asserts the file's SHA-256, then for every vector that
+`canonicalize(input)` equals `canonical` byte for byte and that
+`sha256(canonical)` equals `hash`; for the event vectors it also asserts
+`eventHash` and the chain links. C-AUD-3 names the file.
 
 ## 12. Reference-container fixture failures
 
