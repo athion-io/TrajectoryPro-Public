@@ -16,6 +16,7 @@
 // `expect` block and returns pass, note or fail with a plain-English reason.
 
 import { isDeepStrictEqual } from 'node:util';
+import { redactUrl, redactValue } from './http.mjs';
 
 /**
  * @typedef {object} Response
@@ -148,19 +149,21 @@ function headerValue(headers, name) {
 /** @returns {CheckResult} */
 function checkHeader(name, rule, headers) {
   const value = headerValue(headers, name);
+  // Reasons land in the report, so the quoted value is masked when secret.
+  const shown = value === null ? null : show(redactValue(name, value));
   if ('present' in rule) {
     if (rule.present !== false && value === null) return fail(`header ${name} is missing`);
     if (rule.present === false && value !== null) return fail(`header ${name} is present, expected absent`);
   }
   if ('equals' in rule) {
     if (value === null) return fail(`header ${name} is missing`);
-    if (value !== rule.equals) return fail(`header ${name} is ${show(value)}, expected ${show(rule.equals)}`);
+    if (value !== rule.equals) return fail(`header ${name} is ${shown}, expected ${show(rule.equals)}`);
   }
   if ('contains_token' in rule) {
     if (value === null) return fail(`header ${name} is missing`);
     const tokens = value.split(',').map((t) => t.trim().toLowerCase());
     if (!tokens.includes(String(rule.contains_token).toLowerCase())) {
-      return fail(`header ${name} is ${show(value)}, expected to contain ${rule.contains_token}`);
+      return fail(`header ${name} is ${shown}, expected to contain ${rule.contains_token}`);
     }
   }
   return pass();
@@ -172,7 +175,8 @@ const fail = (reason) => ({ outcome: 'fail', reason });
 
 /**
  * Grades a response. A fail anywhere gives `fail`; otherwise a note anywhere
- * gives `note`; otherwise `pass`. The reason lists every fail (or every note).
+ * gives `note`; otherwise `pass`. The reason lists every fail (or every note),
+ * with any `token=` query value it quotes masked, since reasons are reported.
  * @param {object | undefined} expect  `{status?, json?, headers?}`
  * @param {Response} response
  * @returns {CheckResult}
@@ -185,8 +189,8 @@ export function check(expect, response) {
   for (const [name, rule] of Object.entries(expect.headers ?? {})) results.push(checkHeader(name, rule, response.headers));
 
   const fails = results.filter((r) => r.outcome === 'fail');
-  if (fails.length > 0) return fail(fails.map((r) => r.reason).join('; '));
+  if (fails.length > 0) return fail(redactUrl(fails.map((r) => r.reason).join('; ')));
   const notes = results.filter((r) => r.outcome === 'note');
-  if (notes.length > 0) return note(notes.map((r) => r.reason).join('; '));
+  if (notes.length > 0) return note(redactUrl(notes.map((r) => r.reason).join('; ')));
   return pass();
 }

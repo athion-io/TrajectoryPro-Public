@@ -15,7 +15,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildRequest, redact, redactUrl, template } from '../src/http.mjs';
+import { buildRequest, redact, redactUrl, redactValue, template } from '../src/http.mjs';
 
 function target(extra = {}) {
   return {
@@ -131,6 +131,13 @@ describe('redact', () => {
   test('masks token= inside any header value', () => {
     const out = redact({ Location: 'http://stub.test/stream?token=abc123&x=1' });
     assert.equal(out.Location, 'http://stub.test/stream?token=***&x=1');
+  });
+
+  test('redactValue masks a secret header whatever its case, and token= in any other', () => {
+    assert.equal(redactValue('authorization', 'Bearer s3cret'), '***');
+    assert.equal(redactValue('X-Api-Key', 's3cret'), '***');
+    assert.equal(redactValue('Location', '/s?token=abc'), '/s?token=***');
+    assert.equal(redactValue('Vary', 'Origin'), 'Origin');
   });
 
   test('redactUrl masks a token query value', () => {

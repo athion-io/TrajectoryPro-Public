@@ -105,10 +105,19 @@ export function buildRequest(target, step, vars, apiKey) {
 export function redact(headers) {
   const entries = typeof headers?.entries === 'function' ? [...headers.entries()] : Object.entries(headers ?? {});
   const out = {};
-  for (const [name, value] of entries) {
-    out[name] = SECRET_HEADERS.has(name.toLowerCase()) ? '***' : redactUrl(String(value));
-  }
+  for (const [name, value] of entries) out[name] = redactValue(name, value);
   return out;
+}
+
+/**
+ * Masks one header value for a report: `***` for X-API-Key and Authorization,
+ * otherwise the value with any `token=` query value masked.
+ * @param {string} name  header name, any case
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function redactValue(name, value) {
+  return SECRET_HEADERS.has(name.toLowerCase()) ? '***' : redactUrl(String(value));
 }
 
 /**

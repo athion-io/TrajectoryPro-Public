@@ -216,9 +216,38 @@ describe('check: headers', () => {
     const r = check({ headers: { vary: { equals: 'Origin' } } }, { status: 200, headers: { Vary: 'Origin' }, json: {} });
     assert.equal(r.outcome, 'pass');
   });
+
+  test('a mismatch reason masks a token= query value in the header', () => {
+    const r = check({ headers: { Location: { equals: '/stream' } } }, response(200, body, { Location: '/stream?token=x' }));
+    assert.equal(r.outcome, 'fail');
+    assert.match(r.reason, /token=\*\*\*/);
+    assert.doesNotMatch(r.reason, /token=x/);
+    const c = check({ headers: { Link: { contains_token: 'next' } } }, response(200, body, { Link: '</s?token=x>; rel=prev' }));
+    assert.match(c.reason, /token=\*\*\*/);
+    assert.doesNotMatch(c.reason, /token=x/);
+  });
+
+  test('a mismatch reason masks the value of a secret header', () => {
+    for (const name of ['Authorization', 'X-API-Key']) {
+      const r = check({ headers: { [name]: { equals: 'expected' } } }, response(200, body, { [name]: 'Bearer s3cret' }));
+      assert.equal(r.outcome, 'fail');
+      assert.match(r.reason, /\*\*\*/);
+      assert.doesNotMatch(r.reason, /s3cret/);
+      const c = check({ headers: { [name]: { contains_token: 'x' } } }, response(200, body, { [name]: 's3cret' }));
+      assert.doesNotMatch(c.reason, /s3cret/);
+    }
+  });
 });
 
 describe('check: combining', () => {
+  test('a json mismatch reason masks a token= query value in the body', () => {
+    const json = { data: { stream_url: 'http://stub.test/s?token=x&a=1' } };
+    const r = check({ json: [{ path: '$.data.stream_url', equals: '/other' }] }, response(200, json));
+    assert.equal(r.outcome, 'fail');
+    assert.match(r.reason, /token=\*\*\*/);
+    assert.doesNotMatch(r.reason, /token=x/);
+  });
+
   test('an empty expectation passes', () => {
     assert.deepEqual(check({}, response()), { outcome: 'pass', reason: '' });
     assert.equal(check(undefined, response()).outcome, 'pass');
