@@ -1,0 +1,64 @@
+{
+  "test_id": "cfg-001",
+  "name": "deltav-fhx: patching one parameter yields the golden after file byte for byte",
+  "category": "config-connector",
+  "level": "MUST",
+  "source": "C-CFG-4",
+  "tags": [
+    "apply",
+    "deltav-fhx"
+  ],
+  "requires": [
+    "connector_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/connector/apply",
+      "probe": true,
+      "body": {
+        "profile": "deltav-fhx",
+        "mode": "test",
+        "file_b64": "Lyogc3ludGhldGljIEZIWC1saWtlIHRleHQgZm9yIGNvbnRyYWN0IHRlc3RzOyBub3QgYSB2ZW5kb3IgZmlsZSwgbm90IGEgcmVhbCBwbGFudCAqLwpNT0RVTEUgTkFNRT0iRkFLRV9QVU1QX0EiIHsKICBBVFRSSUJVVEVfSU5TVEFOQ0UgTkFNRT0iU0VUUE9JTlQiIHsgVkFMVUUgeyBDVj0xMC4wIH0gfQogIEFUVFJJQlVURV9JTlNUQU5DRSBOQU1FPSJISV9MSU1JVCIgeyBWQUxVRSB7IENWPTkwLjAgfSB9Cn0KTU9EVUxFIE5BTUU9IkZBS0VfUFVNUF9CIiB7CiAgQVRUUklCVVRFX0lOU1RBTkNFIE5BTUU9IlNFVFBPSU5UIiB7IFZBTFVFIHsgQ1Y9MjAuMCB9IH0KfQo=",
+        "changes": [
+          {
+            "platform": "deltav-fhx",
+            "item": "FAKE_PUMP_A/SETPOINT",
+            "from": "10.0",
+            "to": "12.5"
+          }
+        ]
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.before_hash",
+            "equals": "sha256:154c8e642c987843e1c064e85ad82bd54af8bf9514872a21b953e07710070442"
+          },
+          {
+            "path": "$.data.after_b64",
+            "equals": "Lyogc3ludGhldGljIEZIWC1saWtlIHRleHQgZm9yIGNvbnRyYWN0IHRlc3RzOyBub3QgYSB2ZW5kb3IgZmlsZSwgbm90IGEgcmVhbCBwbGFudCAqLwpNT0RVTEUgTkFNRT0iRkFLRV9QVU1QX0EiIHsKICBBVFRSSUJVVEVfSU5TVEFOQ0UgTkFNRT0iU0VUUE9JTlQiIHsgVkFMVUUgeyBDVj0xMi41IH0gfQogIEFUVFJJQlVURV9JTlNUQU5DRSBOQU1FPSJISV9MSU1JVCIgeyBWQUxVRSB7IENWPTkwLjAgfSB9Cn0KTU9EVUxFIE5BTUU9IkZBS0VfUFVNUF9CIiB7CiAgQVRUUklCVVRFX0lOU1RBTkNFIE5BTUU9IlNFVFBPSU5UIiB7IFZBTFVFIHsgQ1Y9MjAuMCB9IH0KfQo="
+          },
+          {
+            "path": "$.data.after_hash",
+            "equals": "sha256:1d33eada2f7632722ec676d60fd6e1cbd70a86072ff1d2cba1666e256ce7154a"
+          },
+          {
+            "path": "$.data.read_back.ok",
+            "equals": true
+          },
+          {
+            "path": "$.data.read_back.mismatches",
+            "equals": []
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

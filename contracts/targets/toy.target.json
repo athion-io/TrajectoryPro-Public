@@ -4,7 +4,7 @@
   "base_url": "http://toy.test/trajectory/v1",
   "probe_url": "http://toy.test/conformance/v1",
   "auth": { "mode": "required", "header": "X-API-Key", "scheme": "" },
-  "capabilities": ["observable_action", "opaque_action", "commands", "sse", "list", "delete", "cors", "outbound_only", "permission_probe", "audit_probe"],
+  "capabilities": ["observable_action", "opaque_action", "commands", "sse", "list", "delete", "cors", "outbound_only", "permission_probe", "audit_probe", "connector_probe"],
   "extensions": [],
   "roles": {
     "environment_oid": "env-c1",

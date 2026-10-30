@@ -28,13 +28,15 @@
 //   no-ring-replay         Last-Event-ID is ignored; no buffered replay
 //   break-chain            audit trail exported by /conformance/v1/audit/export has a
 //                          broken prev_hash link at index 2 (audit-trail aud-010)
-//   lying-readback         permission read-back differs from what was granted (later task)
+//   lying-readback         /conformance/v1/connector/apply reports read_back.ok
+//                          from the requested values instead of re-reading the
+//                          file, so a clamped write is reported as applied
+//                          (config-connector cfg-006, C-CFG-2)
 //   permit-self-approval   the change author's own signature counts towards the
 //                          quorum (permission prm-014, C-PRM-4)
-// The /conformance/v1/* probe surface (PROBE_ROUTES) carries the audit and
-// permission probes; a later task adds the connector probe there. Add routes
-// to ROUTES or PROBE_ROUTES and consult `defects.has(...)` at the point of
-// failure.
+// The /conformance/v1/* probe surface (PROBE_ROUTES) carries the audit,
+// permission and connector probes. Add routes to ROUTES or PROBE_ROUTES and
+// consult `defects.has(...)` at the point of failure.
 
 import { canonicalize, sha256Digest } from '../src/jcs.mjs';
 import { eventHash, verifyChain } from '../src/audit.mjs';
@@ -244,6 +246,122 @@ const COMMAND_PATH = {
 
 /** §3.1: the only terminal states; nothing is emitted after the terminal state_change. */
 const TERMINAL = new Set(['COMPLETED', 'STOPPED', 'ABORTED']);
+
+// ---------- plant-configuration connector (config-connector CONTRACT §4) ----------
+
+/** Thrown by applyChanges for a malformed request or a change that cannot be applied. */
+export class ConnectorError extends Error {
+  constructor(status, code, message, details = {}) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+/**
+ * The two synthetic text formats the toy patches, one line per parameter.
+ * `open` matches a line that starts an object and captures its name; `close`
+ * matches the line that ends it; `param(name)` matches a parameter line inside
+ * the current object and captures prefix / value / suffix so only the value
+ * is rewritten. Neither is a vendor grammar: they are just enough for the
+ * fixtures under config-connector/fixtures/files/.
+ */
+export const CONNECTOR_PROFILES = Object.freeze({
+  'deltav-fhx': {
+    open: /^MODULE NAME="([^"]+)" \{$/,
+    close: /^\}$/,
+    param: (name) => new RegExp(`^(\\s*ATTRIBUTE_INSTANCE NAME="${name}" \\{ VALUE \\{ CV=)([^ }]*)( \\} \\})$`),
+    // The fake "system" clamps SETPOINT to the module's HI_LIMIT, the way a
+    // real controller normalises an out-of-range write. cfg-006 relies on it.
+    clamp: (object, param, value, read) => {
+      if (param !== 'SETPOINT') return value;
+      const limit = read(object, 'HI_LIMIT');
+      if (limit === undefined || !(Number(value) > Number(limit))) return value;
+      return limit;
+    },
+  },
+  'mimic-xml': {
+    open: /^\s*<object name="([^"]+)">$/,
+    close: /^\s*<\/object>$/,
+    param: (name) => new RegExp(`^(\\s*<param name="${name}">)([^<]*)(</param>)$`),
+    clamp: (object, param, value) => value,
+  },
+});
+
+/** Splits `"<object>/<parameter>"` at the last slash. */
+function splitItem(item) {
+  const i = item.lastIndexOf('/');
+  if (i <= 0 || i === item.length - 1) throw new ConnectorError(400, 'VALIDATION_ERROR', `item "${item}" is not <object>/<parameter>`);
+  return { object: item.slice(0, i), param: item.slice(i + 1) };
+}
+
+/** Line index of `object`/`param` in `lines`, or -1. */
+function findLine(profile, lines, object, param) {
+  const re = profile.param(param);
+  let current;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const open = line.match(profile.open);
+    if (open) { current = open[1]; continue; }
+    if (profile.close.test(line)) { current = undefined; continue; }
+    if (current === object && re.test(line)) return i;
+  }
+  return -1;
+}
+
+/**
+ * Applies `changes` to the UTF-8 text `before` under `profileName`, checking
+ * every `from` first (C-CFG-1) so a stale change leaves the text untouched.
+ * The returned `after` differs from `before` only on the patched lines
+ * (C-CFG-4). `readBack` re-reads every item from `after` (C-CFG-2); with
+ * `lie: true` it instead echoes the requested values, which is the
+ * `lying-readback` defect.
+ * @returns {{after: string, read_back: {ok: boolean, mismatches: Array<{item: string, expected: string, actual: string}>}}}
+ * @throws {ConnectorError}
+ */
+export function applyChanges(profileName, before, changes, { lie = false } = {}) {
+  const profile = CONNECTOR_PROFILES[profileName];
+  if (!profile) throw new ConnectorError(400, 'VALIDATION_ERROR', `unknown profile "${profileName}"`);
+  if (!Array.isArray(changes) || changes.length === 0) throw new ConnectorError(400, 'VALIDATION_ERROR', 'changes must be a non-empty array');
+  const lines = before.split('\n');
+  const read = (object, param) => {
+    const i = findLine(profile, lines, object, param);
+    return i < 0 ? undefined : lines[i].match(profile.param(param))[2];
+  };
+
+  const plan = [];
+  for (const change of changes) {
+    for (const key of ['platform', 'item', 'from', 'to']) {
+      if (typeof change?.[key] !== 'string') throw new ConnectorError(400, 'VALIDATION_ERROR', `change.${key} must be a string`);
+    }
+    if (change.platform !== profileName) throw new ConnectorError(400, 'VALIDATION_ERROR', `change.platform "${change.platform}" is not the profile`);
+    const { object, param } = splitItem(change.item);
+    const i = findLine(profile, lines, object, param);
+    if (i < 0) throw new ConnectorError(400, 'ITEM_NOT_FOUND', `item "${change.item}" is not in the file`, { item: change.item });
+    const actual = lines[i].match(profile.param(param))[2];
+    if (actual !== change.from) {
+      throw new ConnectorError(409, 'STALE_VALUE', `item "${change.item}" is "${actual}", not "${change.from}"`, { item: change.item, expected: change.from, actual });
+    }
+    plan.push({ change, object, param, i });
+  }
+
+  for (const { object, param, i, change } of plan) {
+    const value = profile.clamp(object, param, change.to, read);
+    lines[i] = lines[i].replace(profile.param(param), `$1${value}$3`);
+  }
+  const after = lines.join('\n');
+
+  const mismatches = [];
+  if (!lie) {
+    for (const { change } of plan) {
+      const { object, param } = splitItem(change.item);
+      const actual = read(object, param);
+      if (actual !== change.to) mismatches.push({ item: change.item, expected: change.to, actual });
+    }
+  }
+  return { after, read_back: { ok: mismatches.length === 0, mismatches } };
+}
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -665,10 +783,38 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
     }
   }
 
+  /**
+   * POST /connector/apply {profile, mode: "test", file_b64, changes[]}
+   * -> {data: {after_b64, before_hash, after_hash, read_back}}. Test mode
+   * only: the toy has no live system to import into (C-CFG-3), so `mode`
+   * other than "test" and a `source` instead of `file_b64` (the live route
+   * fixtures) are refused.
+   */
+  function handleConnectorApply({ body }) {
+    if (!body || typeof body !== 'object') return fail(400, 'VALIDATION_ERROR', 'body must be an object');
+    if (body.mode !== 'test') return fail(400, 'VALIDATION_ERROR', 'mode must be "test"');
+    if (typeof body.file_b64 !== 'string' || body.file_b64 === '') return fail(400, 'VALIDATION_ERROR', 'file_b64 is required');
+    const before = Buffer.from(body.file_b64, 'base64');
+    try {
+      const { after, read_back } = applyChanges(body.profile, before.toString('utf8'), body.changes, { lie: defects.has('lying-readback') });
+      const afterBytes = Buffer.from(after, 'utf8');
+      return ok(200, {
+        after_b64: afterBytes.toString('base64'),
+        before_hash: sha256Digest(before),
+        after_hash: sha256Digest(afterBytes),
+        read_back,
+      });
+    } catch (err) {
+      if (err instanceof ConnectorError) return fail(err.status, err.code, err.message, err.details);
+      throw err;
+    }
+  }
+
   const PROBE_ROUTES = [
     ['POST', /^\/audit\/verify$/, handleAuditVerify],
     ['GET', /^\/audit\/export$/, handleAuditExport],
     ['POST', /^\/permission\/decide$/, handlePermissionDecide],
+    ['POST', /^\/connector\/apply$/, handleConnectorApply],
   ];
 
   function authorized(headers) {

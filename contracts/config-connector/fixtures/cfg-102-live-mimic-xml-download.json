@@ -1,0 +1,61 @@
+{
+  "test_id": "cfg-102",
+  "name": "live mimic-xml: download route exports the current file and applies one parameter in test mode",
+  "category": "config-connector",
+  "level": "MUST",
+  "source": "C-CFG-3",
+  "tags": [
+    "live",
+    "apply",
+    "mimic-xml",
+    "download"
+  ],
+  "requires": [
+    "connector_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/connector/apply",
+      "probe": true,
+      "body": {
+        "profile": "mimic-xml",
+        "mode": "test",
+        "source": {
+          "kind": "live",
+          "route": "download"
+        },
+        "changes": [
+          {
+            "platform": "mimic-xml",
+            "item": "LIVE_OBJECT/LIVE_PARAMETER",
+            "from": "0",
+            "to": "1"
+          }
+        ]
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.before_hash",
+            "matches": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "path": "$.data.after_hash",
+            "matches": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "path": "$.data.read_back.ok",
+            "equals": true
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}
