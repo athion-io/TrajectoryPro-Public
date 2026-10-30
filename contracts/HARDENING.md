@@ -423,7 +423,7 @@ not do.
 
 ## 11. Primitives vs JCS canonicalisation
 
-**Severity: L (proposed; Marsha to confirm) — one difference found, fixed
+**Severity: L (confirmed by Marsha, 2026-10-29) — one difference found, fixed
 in the runner, closed**
 
 **what** — Twelve golden vectors (`{input, canonical, hash}`) were generated
@@ -494,7 +494,7 @@ Expected from the evidence above, to be confirmed by the run:
 
 ## 13. The Mission Broker authenticates with `Authorization` only and refuses outside the envelope
 
-**Severity: M (proposed; Marsha to confirm)**
+**Severity: M (confirmed by Marsha, 2026-10-29)**
 
 **what** — The Mission Broker is a `/trajectory/v1/*` action server (the
 Distributed Workflow actions). It reads the key from `Authorization:

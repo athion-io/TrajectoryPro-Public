@@ -262,8 +262,8 @@ do not; their role below is quoted from the applications table in the root
   only if the target profile sets `auth.header: Authorization` and
   `auth.scheme: Bearer` (`contracts/runner/src/http.mjs:86-89`), which is
   itself the departure from C-AGT-3: a conforming server does not need
-  the override. Recorded as `HARDENING.md` finding 13 (severity proposed;
-  Marsha to confirm). Whether the per-origin credential should stay a
+  the override. Recorded as `HARDENING.md`   finding 13 (severity M,
+    confirmed by Marsha). Whether the per-origin credential should stay a
   *different key* — which finding 13 allows — or a different *header* is
   the design question this report leaves to her.
 - **Coupling.** `package.json` depends on `mission-control-db` by relative
