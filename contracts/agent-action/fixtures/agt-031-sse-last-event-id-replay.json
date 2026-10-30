@@ -1,0 +1,105 @@
+{
+  "test_id": "agt-031",
+  "name": "Last-Event-ID: n replays only frames with id > n",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST §4.2",
+  "tags": [
+    "sse",
+    "replay"
+  ],
+  "requires": [
+    "observable_action",
+    "sse"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "EXECUTING"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "kind": "sse_read",
+      "id": "first",
+      "instance": "{{iid}}",
+      "last_event_id": 0,
+      "max": 1,
+      "capture": {
+        "first_id": "$.events[0].id"
+      },
+      "expect": {
+        "json": [
+          {
+            "path": "$.ended",
+            "equals": "count"
+          },
+          {
+            "path": "$.events[0].id",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "sse_read",
+      "id": "rest",
+      "instance": "{{iid}}",
+      "last_event_id": "{{first_id}}",
+      "timeout_s": 1,
+      "expect": {
+        "json": [
+          {
+            "path": "$.ended",
+            "in": [
+              "timeout",
+              "end"
+            ]
+          },
+          {
+            "path": "$.events",
+            "length_max": 0
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

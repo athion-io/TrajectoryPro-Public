@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { makeToy } from './toy-container.mjs';
+import { makeToy, FAST_COMPLETING_TICKS } from './toy-container.mjs';
 import { fakeClock } from './fake-clock.mjs';
 
 const BASE = 'http://toy.test/trajectory/v1';
@@ -155,7 +155,7 @@ describe('toy container smoke', () => {
     const inv = await call(t, 'POST', '/actions/act-fast/invoke', invokeBody());
     const id = inv.json.data.instance_id;
     const sse = await t.fetch(`${BASE}/instances/${id}/events`, { headers: { 'x-api-key': 'k' } });
-    await t.tick(100);
+    await t.tick(FAST_COMPLETING_TICKS + 2);
 
     const got = await call(t, 'GET', `/instances/${id}`);
     assert.equal(got.json.data.state.current, 'COMPLETED');
@@ -167,6 +167,37 @@ describe('toy container smoke', () => {
     assert.deepEqual(output.data.outputs, got.json.data.outputs);
     assert.equal(frames.at(-1).event, 'state_change');
     assert.equal(frames.at(-1).data.state, 'COMPLETED');
+  });
+
+  test('act-fast shows a COMPLETING window in which HOLD is 409 but ABORT is accepted', async () => {
+    const t = toy();
+    const inv = await call(t, 'POST', '/actions/act-fast/invoke', invokeBody());
+    const id = inv.json.data.instance_id;
+    await t.tick(2);
+    assert.equal((await call(t, 'GET', `/instances/${id}`)).json.data.state.current, 'COMPLETING');
+
+    const hold = await call(t, 'POST', `/instances/${id}/command`, { command: 'HOLD' });
+    assert.equal(hold.status, 409);
+    assert.equal(hold.json.error.code, 'INVALID_STATE_TRANSITION');
+
+    await t.tick(FAST_COMPLETING_TICKS);
+    assert.equal((await call(t, 'GET', `/instances/${id}`)).json.data.state.current, 'COMPLETED');
+
+    const t2 = toy();
+    const id2 = (await call(t2, 'POST', '/actions/act-fast/invoke', invokeBody())).json.data.instance_id;
+    await t2.tick(2);
+    assert.equal((await call(t2, 'POST', `/instances/${id2}/command`, { command: 'ABORT' })).status, 200);
+    await t2.tick(2);
+    assert.equal((await call(t2, 'GET', `/instances/${id2}`)).json.data.state.current, 'ABORTED');
+  });
+
+  test('an opaque instance has no event stream: 404 NOT_FOUND in the error envelope', async () => {
+    const t = toy();
+    const id = (await call(t, 'POST', '/actions/act-opaque/invoke', invokeBody())).json.data.instance_id;
+    const r = await call(t, 'GET', `/instances/${id}/events`);
+    assert.equal(r.status, 404);
+    assert.equal(r.json.error.code, 'NOT_FOUND');
+    assert.equal((await call(t, 'GET', `/instances/${id}`)).status, 200);
   });
 
   test('CLEAR after ABORTED emits no event past the terminal state_change', async () => {

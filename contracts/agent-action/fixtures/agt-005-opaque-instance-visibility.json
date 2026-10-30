@@ -1,0 +1,85 @@
+{
+  "test_id": "agt-005",
+  "name": "An opaque action is advertised as opaque and its instance view reports visibility \"opaque\"",
+  "category": "agent-action",
+  "level": "SHOULD",
+  "source": "REST §3.3",
+  "tags": [
+    "capabilities",
+    "opaque"
+  ],
+  "requires": [
+    "opaque_action"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/capabilities",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.environments[*].actions[*].visibility",
+            "in": [
+              "observable",
+              "opaque"
+            ]
+          },
+          {
+            "path": "$.data.environments[*].actions[*].supported_commands",
+            "type": "array"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.opaque_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/instances/{{iid}}",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.visibility",
+            "equals": "opaque"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

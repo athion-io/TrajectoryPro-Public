@@ -1,0 +1,50 @@
+{
+  "test_id": "agt-061",
+  "name": "A guarded action invoked with an approval whose change_hash does not match answers 400 CHANGE_HASH_MISMATCH",
+  "category": "agent-action",
+  "level": "EXTENSION:change-guard",
+  "tags": [
+    "change-guard",
+    "invoke"
+  ],
+  "requires": [
+    "change-guard",
+    "guarded_action"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.guarded_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ],
+        "change_approval": {
+          "approved": true,
+          "change_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "CHANGE_HASH_MISMATCH"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

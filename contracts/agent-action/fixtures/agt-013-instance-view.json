@@ -1,0 +1,127 @@
+{
+  "test_id": "agt-013",
+  "name": "GET /instances/{id} returns the REST-04 keys and a canonical state.current",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST-04",
+  "tags": [
+    "instance"
+  ],
+  "requires": [
+    "observable_action"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    }
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/instances/{{iid}}",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.instance_id",
+            "type": "string"
+          },
+          {
+            "path": "$.data.action_oid",
+            "type": "string"
+          },
+          {
+            "path": "$.data.environment_oid",
+            "type": "string"
+          },
+          {
+            "path": "$.data.workflow_instance_id",
+            "type": "string"
+          },
+          {
+            "path": "$.data.step_instance_id",
+            "type": "string"
+          },
+          {
+            "path": "$.data.visibility",
+            "in": [
+              "observable",
+              "opaque"
+            ]
+          },
+          {
+            "path": "$.data.state",
+            "type": "object"
+          },
+          {
+            "path": "$.data.state.current",
+            "in": [
+              "POSTED",
+              "RECEIVED",
+              "IN_PROGRESS",
+              "STARTING",
+              "EXECUTING",
+              "COMPLETING",
+              "COMPLETED",
+              "PAUSING",
+              "PAUSED",
+              "RESUMING",
+              "HOLDING",
+              "HELD",
+              "UNHOLDING",
+              "STOPPING",
+              "STOPPED",
+              "ABORTING",
+              "ABORTED"
+            ]
+          },
+          {
+            "path": "$.data.inputs",
+            "type": "array"
+          },
+          {
+            "path": "$.data.outputs",
+            "type": "array"
+          },
+          {
+            "path": "$.data.created_at",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

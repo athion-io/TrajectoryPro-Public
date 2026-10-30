@@ -1,0 +1,36 @@
+{
+  "test_id": "agt-003",
+  "name": "An Authorization bearer header without X-API-Key does not authenticate: 401 UNAUTHORIZED",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST §1.3",
+  "tags": [
+    "auth",
+    "envelope"
+  ],
+  "requires": [],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/capabilities",
+      "auth": false,
+      "headers": {
+        "Authorization": "Bearer not-the-x-api-key-{{uniq}}"
+      },
+      "expect": {
+        "status": 401,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "UNAUTHORIZED"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

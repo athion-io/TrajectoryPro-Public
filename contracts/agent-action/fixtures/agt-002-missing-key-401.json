@@ -1,0 +1,33 @@
+{
+  "test_id": "agt-002",
+  "name": "An authenticated endpoint called without X-API-Key answers 401 UNAUTHORIZED in the error envelope",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST §1.3",
+  "tags": [
+    "auth",
+    "envelope"
+  ],
+  "requires": [],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/capabilities",
+      "auth": false,
+      "expect": {
+        "status": 401,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "UNAUTHORIZED"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

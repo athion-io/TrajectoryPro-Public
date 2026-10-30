@@ -1,0 +1,88 @@
+{
+  "test_id": "agt-021",
+  "name": "UNHOLD while EXECUTING is rejected with 409 and an error code (a 5xx is an allowed variance, D8)",
+  "category": "agent-action",
+  "level": "IMPL-DEFINED",
+  "source": "D8",
+  "tags": [
+    "command",
+    "state-machine"
+  ],
+  "requires": [
+    "observable_action",
+    "commands"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "EXECUTING"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "UNHOLD"
+      },
+      "expect": {
+        "status": {
+          "one_of": [
+            409
+          ],
+          "note_if": {
+            "range": [
+              500,
+              599
+            ]
+          }
+        },
+        "json": [
+          {
+            "path": "$.error.code",
+            "present": true
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

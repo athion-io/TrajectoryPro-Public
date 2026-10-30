@@ -1,0 +1,72 @@
+{
+  "test_id": "agt-050",
+  "name": "A CORS preflight from the runtime origin allows the X-API-Key and Last-Event-ID request headers",
+  "category": "agent-action",
+  "level": "SHOULD",
+  "source": "REST §1.4",
+  "tags": [
+    "cors"
+  ],
+  "requires": [
+    "cors"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "OPTIONS",
+      "path": "/instances",
+      "auth": false,
+      "headers": {
+        "Origin": "{{roles.cors_origin}}",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "X-API-Key, Last-Event-ID"
+      },
+      "expect": {
+        "status": {
+          "one_of": [
+            200,
+            204
+          ]
+        },
+        "headers": {
+          "access-control-allow-origin": {
+            "present": true
+          },
+          "access-control-allow-headers": {
+            "contains_token": "X-API-Key"
+          },
+          "access-control-allow-methods": {
+            "contains_token": "GET"
+          }
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "method": "OPTIONS",
+      "path": "/instances/{{uniq}}/events",
+      "auth": false,
+      "headers": {
+        "Origin": "{{roles.cors_origin}}",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "X-API-Key, Last-Event-ID"
+      },
+      "expect": {
+        "status": {
+          "one_of": [
+            200,
+            204
+          ]
+        },
+        "headers": {
+          "access-control-allow-origin": {
+            "present": true
+          },
+          "access-control-allow-headers": {
+            "contains_token": "Last-Event-ID"
+          }
+        }
+      }
+    }
+  ]
+}

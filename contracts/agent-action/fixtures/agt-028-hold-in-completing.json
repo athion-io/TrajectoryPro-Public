@@ -1,0 +1,79 @@
+{
+  "test_id": "agt-028",
+  "name": "HOLD while COMPLETING is rejected on the wire (skipped when the implementation shows no COMPLETING window)",
+  "category": "agent-action",
+  "level": "SHOULD",
+  "source": "REST-05",
+  "tags": [
+    "command",
+    "state-machine"
+  ],
+  "requires": [
+    "fast_action",
+    "commands"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.fast_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "COMPLETING"
+      ],
+      "timeout_s": 3,
+      "tolerate": true
+    }
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "HOLD"
+      },
+      "expect": {
+        "status": {
+          "one_of": [
+            409
+          ],
+          "note_if": {
+            "range": [
+              500,
+              599
+            ]
+          }
+        },
+        "json": [
+          {
+            "path": "$.error.code",
+            "present": true
+          }
+        ]
+      }
+    }
+  ]
+}

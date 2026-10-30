@@ -1,0 +1,46 @@
+{
+  "test_id": "agt-011",
+  "name": "Invoke of an unknown action OID answers 404 with an error code",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST §1.6",
+  "tags": [
+    "invoke",
+    "envelope"
+  ],
+  "requires": [
+    "unknown_action"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.unknown_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "expect": {
+        "status": 404,
+        "json": [
+          {
+            "path": "$.error.code",
+            "type": "string"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

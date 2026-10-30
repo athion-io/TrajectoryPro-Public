@@ -1,0 +1,70 @@
+{
+  "test_id": "agt-004",
+  "name": "GET /capabilities lists environments and actions with the REST-02 keys; supported_commands is a subset of the seven canonical commands",
+  "category": "agent-action",
+  "level": "SHOULD",
+  "source": "REST-02",
+  "tags": [
+    "capabilities"
+  ],
+  "requires": [],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/capabilities",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.environments",
+            "type": "array"
+          },
+          {
+            "path": "$.data.environments[*].environment_oid",
+            "type": "string"
+          },
+          {
+            "path": "$.data.environments[*].actions",
+            "type": "array"
+          },
+          {
+            "path": "$.data.environments[*].actions[*].action_oid",
+            "type": "string"
+          },
+          {
+            "path": "$.data.environments[*].actions[*].visibility",
+            "in": [
+              "observable",
+              "opaque"
+            ]
+          },
+          {
+            "path": "$.data.environments[*].actions[*].input_parameters",
+            "type": "array"
+          },
+          {
+            "path": "$.data.environments[*].actions[*].output_parameters",
+            "type": "array"
+          },
+          {
+            "path": "$.data.environments[*].actions[*].supported_commands",
+            "type": "array"
+          },
+          {
+            "path": "$.data.environments[*].actions[*].supported_commands[*]",
+            "in": [
+              "PAUSE",
+              "RESUME",
+              "HOLD",
+              "UNHOLD",
+              "ABORT",
+              "STOP",
+              "CLEAR"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "test_id": "agt-040",
+  "name": "GET /instances answers a data array and an integer meta.total",
+  "category": "agent-action",
+  "level": "SHOULD",
+  "source": "REST-08",
+  "tags": [
+    "list"
+  ],
+  "requires": [
+    "observable_action",
+    "list"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    }
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/instances?workflow_instance_id=wf-{{uniq}}",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data",
+            "type": "array"
+          },
+          {
+            "path": "$.data[*].instance_id",
+            "type": "string"
+          },
+          {
+            "path": "$.meta.total",
+            "type": "integer"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

@@ -54,12 +54,15 @@ export const TOY_ROLES = Object.freeze({
 const ACTIONS = {
   'act-hold': { visibility: 'observable', description: 'Holds in EXECUTING until commanded' },
   'act-opaque': { visibility: 'opaque', description: 'Completes on its own after a few ticks' },
-  'act-fast': { visibility: 'observable', description: 'Completes one tick after invoke' },
+  'act-fast': { visibility: 'observable', description: 'Enters COMPLETING one tick after invoke and completes 300 ticks later' },
   'act-offline': { visibility: 'observable', description: 'Agent is unavailable', offline: true },
   'act-guarded': { visibility: 'observable', description: 'Guarded by a permission (later task)' },
 };
 
 export const COMMANDS = ['PAUSE', 'RESUME', 'HOLD', 'UNHOLD', 'ABORT', 'STOP', 'CLEAR'];
+
+/** Ticks act-fast spends in COMPLETING before COMPLETED. */
+export const FAST_COMPLETING_TICKS = 300;
 
 /** REST_Protocol §3: which commands are valid in which state. */
 const VALID_COMMANDS = {
@@ -70,6 +73,7 @@ const VALID_COMMANDS = {
   EXECUTING: ['PAUSE', 'HOLD', 'ABORT', 'STOP'],
   PAUSED: ['RESUME', 'ABORT', 'STOP'],
   HELD: ['UNHOLD', 'ABORT', 'STOP'],
+  COMPLETING: ['ABORT', 'STOP'],
   ABORTED: ['CLEAR'],
 };
 
@@ -196,8 +200,10 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
     }
     schedule(1, () => inst.state.current === 'STARTING' && setState(inst, 'EXECUTING'));
     if (inst.action_oid === 'act-fast') {
-      // Same tick as EXECUTING, so one tick() sees STARTING -> EXECUTING -> COMPLETED.
-      schedule(1, () => inst.state.current === 'EXECUTING' && complete(inst));
+      // Same tick as EXECUTING, so one tick() sees STARTING -> EXECUTING -> COMPLETING; the
+      // COMPLETING window is long enough for a wait_state poll (250 ms) to observe it.
+      schedule(1, () => inst.state.current === 'EXECUTING' && setState(inst, 'COMPLETING'));
+      schedule(FAST_COMPLETING_TICKS + 1, () => inst.state.current === 'COMPLETING' && complete(inst));
     }
   }
 
@@ -356,6 +362,10 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
 
   function handleEvents(req, [id]) {
     if (!instances.has(id)) return fail(404, 'INSTANCE_NOT_FOUND', 'no such instance', { instance_id: id });
+    // §3.3: an opaque instance has no event stream. The exact 4xx is implementation-defined.
+    if (instances.get(id).visibility === 'opaque') {
+      return fail(404, 'NOT_FOUND', 'opaque instances have no event stream', { instance_id: id });
+    }
     const b = bus(id);
     const encoder = new TextEncoder();
     const lastHeader = req.headers.get('last-event-id');

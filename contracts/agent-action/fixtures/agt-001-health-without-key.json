@@ -1,0 +1,29 @@
+{
+  "test_id": "agt-001",
+  "name": "GET /health answers 200 without an API key",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST-01",
+  "tags": [
+    "health",
+    "auth"
+  ],
+  "requires": [],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/health",
+      "auth": false,
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.status",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

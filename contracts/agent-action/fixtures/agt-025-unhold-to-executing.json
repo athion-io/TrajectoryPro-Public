@@ -1,0 +1,178 @@
+{
+  "test_id": "agt-025",
+  "name": "UNHOLD from HELD settles in EXECUTING; every state on the way is canonical",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST §3.2",
+  "tags": [
+    "command",
+    "state-machine",
+    "sse"
+  ],
+  "requires": [
+    "observable_action",
+    "commands",
+    "sse"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "EXECUTING"
+      ]
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "HOLD"
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.accepted",
+            "equals": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "HELD"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "UNHOLD"
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.accepted",
+            "equals": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "EXECUTING"
+      ],
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.state.current",
+            "in": [
+              "POSTED",
+              "RECEIVED",
+              "IN_PROGRESS",
+              "STARTING",
+              "EXECUTING",
+              "COMPLETING",
+              "COMPLETED",
+              "PAUSING",
+              "PAUSED",
+              "RESUMING",
+              "HOLDING",
+              "HELD",
+              "UNHOLDING",
+              "STOPPING",
+              "STOPPED",
+              "ABORTING",
+              "ABORTED"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "sse_read",
+      "id": "sse",
+      "instance": "{{iid}}",
+      "last_event_id": 0,
+      "timeout_s": 1,
+      "expect": {
+        "json": [
+          {
+            "path": "$.ended",
+            "in": [
+              "timeout",
+              "end"
+            ]
+          },
+          {
+            "path": "$.events[*].data.state",
+            "in": [
+              "POSTED",
+              "RECEIVED",
+              "IN_PROGRESS",
+              "STARTING",
+              "EXECUTING",
+              "COMPLETING",
+              "COMPLETED",
+              "PAUSING",
+              "PAUSED",
+              "RESUMING",
+              "HOLDING",
+              "HELD",
+              "UNHOLDING",
+              "STOPPING",
+              "STOPPED",
+              "ABORTING",
+              "ABORTED"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}
