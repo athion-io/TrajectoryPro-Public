@@ -20,7 +20,9 @@
 // Defects are opt-in switches so broken-toy fixtures can prove the runner
 // catches each one. Each defect breaks exactly the behaviour its name says:
 //   bad-envelope           responses are not wrapped in {data,meta}/{error}
-//   accept-any-command     commands are accepted regardless of state
+//   accept-any-command     any `command` string is accepted with 200: unknown
+//                          names are not 422 and the §3 state table is skipped
+//                          (context.md: "accepts bad command")
 //   no-auth                X-API-Key is not checked
 //   non-idempotent-invoke  re-invoking the same step creates a new instance
 //   no-ring-replay         Last-Event-ID is ignored; no buffered replay
@@ -32,6 +34,11 @@
 
 const ROOT = '/trajectory/v1';
 const RING_SIZE = 256;
+
+export const DEFECTS = Object.freeze([
+  'bad-envelope', 'accept-any-command', 'no-auth', 'non-idempotent-invoke', 'no-ring-replay',
+  'break-chain', 'lying-readback', 'permit-self-approval',
+]);
 
 /** Toy roles that the target file refers to. */
 export const TOY_ROLES = Object.freeze({
@@ -66,7 +73,7 @@ const VALID_COMMANDS = {
   ABORTED: ['CLEAR'],
 };
 
-/** command -> [transient state, settled state] */
+/** command -> [transient state, settled state]. CLEAR is handled apart (§3.2: engine-defined, no state). */
 const COMMAND_PATH = {
   PAUSE: ['PAUSING', 'PAUSED'],
   RESUME: ['RESUMING', 'EXECUTING'],
@@ -74,10 +81,10 @@ const COMMAND_PATH = {
   UNHOLD: ['UNHOLDING', 'EXECUTING'],
   STOP: ['STOPPING', 'STOPPED'],
   ABORT: ['ABORTING', 'ABORTED'],
-  CLEAR: [null, 'IDLE'],
 };
 
-const TERMINAL = new Set(['COMPLETED', 'STOPPED', 'ABORTED', 'FAILED', 'IDLE']);
+/** §3.1: the only terminal states; nothing is emitted after the terminal state_change. */
+const TERMINAL = new Set(['COMPLETED', 'STOPPED', 'ABORTED']);
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -92,6 +99,9 @@ const CORS_HEADERS = {
  */
 export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
   defects = defects instanceof Set ? defects : new Set(defects);
+  for (const d of defects) {
+    if (!DEFECTS.includes(d)) throw new Error(`makeToy: unknown defect '${d}' (known: ${DEFECTS.join(', ')})`);
+  }
   let virtualNow = clock ? clock.now() : 0;
   const now = () => (clock ? clock.now() : virtualNow);
   const iso = () => new Date(now()).toISOString();
@@ -192,7 +202,11 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
   }
 
   function complete(inst) {
-    inst.outputs = { result: 'ok', echo: inst.inputs };
+    // REST-04: outputs is [{name, value}] with stringified values.
+    inst.outputs = [
+      { name: 'result', value: 'ok' },
+      { name: 'input_count', value: String(inst.inputs.length) },
+    ];
     setState(inst, 'COMPLETED');
   }
 
@@ -207,28 +221,37 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
   }
 
   function handleCapabilities() {
+    // REST-02 shape (REST_Protocol.md:177-218).
+    const actions = Object.entries(ACTIONS).map(([action_oid, a]) => ({
+      action_oid,
+      action_name: action_oid,
+      action_state: 'Effective',
+      local_id: action_oid,
+      version: '1.0.0',
+      description: a.description,
+      visibility: a.visibility,
+      input_parameters: [],
+      output_parameters: [
+        { name: 'result', description: 'ok on completion' },
+        { name: 'input_count', description: 'number of input parameters received' },
+      ],
+      supported_commands: a.visibility === 'opaque' ? ['ABORT'] : COMMANDS,
+    }));
     return ok(200, {
-      container: { name: 'reference-toy', version: '0.1.0', protocol: 'trajectory/v1' },
       environments: [{
         environment_oid: TOY_ROLES.environment_oid,
-        name: 'Toy environment',
-        actions: Object.entries(ACTIONS).map(([action_oid, a]) => ({
-          action_oid,
-          name: action_oid,
-          description: a.description,
-          visibility: a.visibility,
-          supported_commands: a.visibility === 'opaque' ? ['ABORT'] : COMMANDS,
-          input_parameters: [],
-        })),
+        environment_name: 'Toy environment',
+        environment_state: 'Effective',
+        action_properties: [],
+        actions,
       }],
-    });
+    }, { total_environments: 1, total_actions: actions.length });
   }
 
-  function handleInvoke(req, [envOid, actionOid]) {
+  function handleInvoke(req, [actionOid]) {
+    // REST-03: action in the path, environment in the body.
     const action = ACTIONS[actionOid];
-    if (envOid !== TOY_ROLES.environment_oid || !action) {
-      return fail(404, 'NOT_FOUND', 'unknown environment or action', { environment_oid: envOid, action_oid: actionOid });
-    }
+    if (!action) return fail(404, 'NOT_FOUND', 'unknown action', { action_oid: actionOid });
     const body = req.body;
     if (!body || typeof body !== 'object') return fail(400, 'VALIDATION_ERROR', 'body must be a JSON object');
     const missing = ['environment_oid', 'workflow_instance_id', 'step_instance_id', 'step_oid', 'input_parameters']
@@ -236,8 +259,9 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
     if (missing.length || !Array.isArray(body.input_parameters)) {
       return fail(400, 'VALIDATION_ERROR', 'missing or invalid fields', { missing, input_parameters: Array.isArray(body.input_parameters) ? 'ok' : 'must be an array' });
     }
-    if (body.environment_oid !== envOid) {
-      return fail(400, 'VALIDATION_ERROR', 'environment_oid does not match path', { path: envOid, body: body.environment_oid });
+    const envOid = body.environment_oid;
+    if (envOid !== TOY_ROLES.environment_oid) {
+      return fail(404, 'NOT_FOUND', 'unknown environment', { environment_oid: envOid });
     }
     if (action.offline) return fail(409, 'AGENT_UNAVAILABLE', 'the agent for this action is offline', { action_oid: actionOid });
 
@@ -257,7 +281,7 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
       visibility: action.visibility,
       state: { current: action.visibility === 'opaque' ? 'POSTED' : 'STARTING', previous: null, entered_at: iso() },
       inputs: body.input_parameters,
-      outputs: null,
+      outputs: [],
       created_at: iso(),
       started_at: null,
       completed_at: null,
@@ -292,23 +316,32 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
     const inst = instances.get(id);
     if (!inst) return fail(404, 'INSTANCE_NOT_FOUND', 'no such instance', { instance_id: id });
     const command = req.body?.command;
-    if (typeof command !== 'string' || !COMMANDS.includes(command)) {
+    const anyCommand = defects.has('accept-any-command');
+    // accept-any-command: any string is "accepted" (no 422 for unknown names, no §3 state table).
+    // An unknown name then does nothing to the state; a known one transitions regardless of state.
+    if (typeof command !== 'string' || (!anyCommand && !COMMANDS.includes(command))) {
       return fail(422, 'INVALID_COMMAND', 'unknown command', { command, supported: COMMANDS });
     }
     const current = inst.state.current;
     const valid = VALID_COMMANDS[current] ?? [];
-    // accept-any-command: skip the §3 validity table and accept in every state.
-    if (!defects.has('accept-any-command') && !valid.includes(command)) {
+    if (!anyCommand && !valid.includes(command)) {
       return fail(409, 'INVALID_STATE_TRANSITION', `${command} is not valid in state ${current}`, { state: current, valid_commands: valid });
     }
-    const [transient, settled] = COMMAND_PATH[command];
-    if (transient) {
+    if (command === 'CLEAR') {
+      // §3.2: engine-defined; the toy removes the instance. §3.1: nothing is
+      // emitted after the terminal state_change, so this is silent.
+      clearInstance(inst);
+    } else if (COMMAND_PATH[command]) {
+      const [transient, settled] = COMMAND_PATH[command];
       setState(inst, transient);
       schedule(1, () => inst.state.current === transient && setState(inst, settled));
-    } else {
-      setState(inst, settled);
     }
     return ok(200, { instance_id: id, command, accepted: true });
+  }
+
+  function clearInstance(inst) {
+    instances.delete(inst.instance_id);
+    for (const [key, id] of invokeIndex) if (id === inst.instance_id) invokeIndex.delete(key);
   }
 
   function handleDelete(req, [id]) {
@@ -332,10 +365,10 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
     let subscriber;
     const body = new ReadableStream({
       start(controller) {
+        // §4.2: replay id > Last-Event-ID; without the header start from the next live event.
         // no-ring-replay: ignore Last-Event-ID and send nothing from the buffer.
-        if (!defects.has('no-ring-replay')) {
-          const replay = lastId === null ? b.events : b.events.filter((f) => f.id > lastId);
-          for (const f of replay) controller.enqueue(frame(f));
+        if (lastId !== null && !defects.has('no-ring-replay')) {
+          for (const f of b.events.filter((f) => f.id > lastId)) controller.enqueue(frame(f));
         }
         subscriber = (f) => {
           try { controller.enqueue(frame(f)); } catch { b.subscribers.delete(subscriber); }
@@ -366,15 +399,14 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
 
   // ---------- routing ----------
 
-  /** Route table: [method, path regex relative to ROOT, handler, {auth}] */
+  /** Route table: [method, path regex relative to ROOT, handler, {auth}] (REST_Protocol.md §2). */
   const ROUTES = [
-    ['OPTIONS', /^.*$/, handleOptions, { auth: false }],
     ['GET', /^\/health$/, handleHealth, { auth: false }],
     ['GET', /^\/capabilities$/, handleCapabilities],
-    ['POST', /^\/environments\/([^/]+)\/actions\/([^/]+)\/invoke$/, handleInvoke],
+    ['POST', /^\/actions\/([^/]+)\/invoke$/, handleInvoke],
     ['GET', /^\/instances$/, handleListInstances],
     ['GET', /^\/instances\/([^/]+)$/, handleGetInstance],
-    ['POST', /^\/instances\/([^/]+)\/commands$/, handleCommand],
+    ['POST', /^\/instances\/([^/]+)\/command$/, handleCommand],
     ['DELETE', /^\/instances\/([^/]+)$/, handleDelete],
     ['GET', /^\/instances\/([^/]+)\/events$/, handleEvents],
   ];
@@ -392,9 +424,11 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
     if (!u.pathname.startsWith(ROOT)) return fail(404, 'NOT_FOUND', 'unknown path');
     const path = u.pathname.slice(ROOT.length) || '/';
 
+    // CORS preflight answers for any known path; it is not in ROUTES so it cannot mask a 404.
+    const pathKnown = ROUTES.some(([, re]) => re.test(path));
+    if (method === 'OPTIONS') return pathKnown ? handleOptions() : fail(404, 'NOT_FOUND', 'unknown path');
     const route = ROUTES.find(([m, re]) => m === method && re.test(path));
     if (!route) {
-      const pathKnown = ROUTES.some(([, re]) => re.test(path));
       return pathKnown ? fail(405, 'METHOD_NOT_ALLOWED', 'method not allowed') : fail(404, 'NOT_FOUND', 'unknown path');
     }
     const [, re, handler, { auth = true } = {}] = route;
