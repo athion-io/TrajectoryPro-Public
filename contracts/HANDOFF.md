@@ -148,5 +148,7 @@ open question 6 records this. Do not treat them as settled.
   here claims a result for the door.
 - Task 18's reference-container results. The container has not been started
   for this work.
-- Behaviour on Node 20. The runner declares `engines.node >=22` and was
-  tested on 24.
+- Nothing about Node versions beyond this: the runner (`bin` and `src`)
+  works on Node 20, 22 and 24 and declares `engines.node >=20`; its unit
+  tests (`node --test "test/**/*.test.mjs"`) need Node 22 or later because
+  Node 20's `--test` does not take a glob. Verified on 22 and 24.

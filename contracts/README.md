@@ -51,15 +51,18 @@ Current extensions are `change-guard` and `forwarded-identity`, both in
 
 ## Running the runner
 
-Needs Node and nothing else. `runner/package.json` declares
-`engines.node >=22`; the runner uses only `fetch`, `node:crypto` and
-`node:test` from Node itself, which Node 20 also provides, but it is tested
-on 22 and later. There is no `npm install` and no `node_modules`.
+Needs Node 20 or later and nothing else. `runner/package.json` declares
+`engines.node >=20`; the runner uses only `fetch`, `node:crypto`,
+`util.parseArgs` and `structuredClone` from Node itself (verified on 20, 22
+and 24). Running the runner's own unit tests needs Node 22 or later; see
+"Unit tests". There is no `npm install` and no `node_modules`.
 
-From the `contracts/` directory:
+From the `contracts/` directory, with a target profile you have written
+(see "Writing a target"; `targets/toy.target.json` is the example profile
+and only resolves inside the unit tests):
 
 ```
-node runner/bin/trajectory-contracts.mjs --target targets/toy.target.json --report report.json
+node runner/bin/trajectory-contracts.mjs --target targets/<your-target>.target.json --report report.json
 ```
 
 Fixtures are found relative to the runner's own location, so the command
@@ -103,11 +106,11 @@ file holds:
 {
   "target": "toy",
   "runner_version": "0.1.0",
-  "fixtures_commit": "<git HEAD of this checkout, or null>",
+  "fixtures_commit": "<git HEAD of this checkout, or \"unknown\">",
   "started_at": "<ISO-8601>",
   "totals": { "pass": 0, "fail": 0, "note": 0, "skip": 0 },
   "results": [
-    { "test_id": "agt-001", "level": "MUST", "outcome": "pass", "reason": "…", "evidence": { } }
+    { "test_id": "agt-001", "level": "MUST", "outcome": "pass", "reason": "…", "evidence": [ ] }
   ]
 }
 ```
@@ -129,7 +132,8 @@ cd runner
 node --test "test/**/*.test.mjs"
 ```
 
-The tests use an in-process reference toy (`runner/test/toy-container.mjs`)
+This needs Node 22 or later: the glob argument to `node --test` is not
+understood by Node 20 (verified on 22 and 24). The tests use an in-process reference toy (`runner/test/toy-container.mjs`)
 with an injected `fetch` and clock. They open no sockets and start no
 timers. `targets/toy.target.json` names the host `toy.test`, which exists
 only inside those tests.
@@ -170,7 +174,9 @@ Some capabilities require roles:
 Fixtures may also require roles directly, such as `fast_action`,
 `offline_action`, `unknown_action`, `guarded_action` and
 `guarded_change_hash`. A fixture whose `requires` names a role the target
-does not have skips; the toy target shows the full set.
+does not have skips. The toy target has all of these except
+`guarded_change_hash`, which only `agt-062` (`EXTENSION:change-guard`)
+needs, so that fixture skips against the toy.
 
 Lint errors in a target (missing keys, an unknown capability, a probe
 capability without `probe_url`) stop the run with exit code 2.
@@ -185,8 +191,8 @@ sh scripts/setup-secrets.sh
 docker compose up -d mission-autopilot-server
 ```
 
-`setup-secrets.sh` writes a `.env` with `ACTIONS_API_KEY` and
-`POSTGRES_PASSWORD`. The service is `mission-autopilot-server`; it listens
+`setup-secrets.sh` writes `.env` files with `ACTIONS_API_KEY` among other
+keys (`POSTGRES_PASSWORD` and the internal service tokens). The service is `mission-autopilot-server`; it listens
 on `127.0.0.1:3002`, so `base_url` is `http://localhost:3002/trajectory/v1`.
 Its `auth.mode` is `required`; set `CONTRACTS_API_KEY` to the same value as
 the container's `ACTIONS_API_KEY` before running. Never put the value in the
