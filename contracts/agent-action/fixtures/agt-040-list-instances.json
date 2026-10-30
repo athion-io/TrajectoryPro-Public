@@ -56,6 +56,10 @@
           {
             "path": "$.meta.total",
             "type": "integer"
+          },
+          {
+            "path": "$.data[*].instance_id",
+            "equals": "{{iid}}"
           }
         ]
       }

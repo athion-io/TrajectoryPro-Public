@@ -46,7 +46,7 @@
         "json": [
           {
             "path": "$.data.instance_id",
-            "type": "string"
+            "equals": "{{iid}}"
           },
           {
             "path": "$.data.action_oid",

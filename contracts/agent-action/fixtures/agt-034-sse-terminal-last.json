@@ -93,6 +93,26 @@
               "ABORTING",
               "ABORTED"
             ]
+          },
+          {
+            "path": "$.events[-1].event",
+            "equals": "state_change"
+          },
+          {
+            "path": "$.events[-1].data.state",
+            "in": [
+              "COMPLETED",
+              "ABORTED",
+              "STOPPED"
+            ]
+          },
+          {
+            "path": "$.events[-2].event",
+            "equals": "output"
+          },
+          {
+            "path": "$.events[-2].data.outputs[*].name",
+            "type": "string"
           }
         ]
       }

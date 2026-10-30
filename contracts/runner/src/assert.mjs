@@ -30,10 +30,11 @@ import { redactUrl, redactValue } from './http.mjs';
  */
 
 const JSON_OPERATORS = ['present', 'absent', 'equals', 'type', 'in', 'matches', 'length_max'];
-const PATH_TOKEN = /\.([A-Za-z0-9_-]+)|\[(\d+|\*)\]/y;
+const PATH_TOKEN = /\.([A-Za-z0-9_-]+)|\[(-?\d+|\*)\]/y;
 
 /**
- * Evaluates a small JSONPath subset: `$`, `.key`, `[n]`, `[*]`.
+ * Evaluates a small JSONPath subset: `$`, `.key`, `[n]`, `[-n]`, `[*]`.
+ * `[-n]` counts from the end of an array (`[-1]` is the last element).
  * @param {unknown} obj
  * @param {string} path
  * @returns {unknown[]} every value the path reaches; empty when nothing matches
@@ -48,7 +49,7 @@ export function jsonPath(obj, path) {
   while (index < path.length) {
     PATH_TOKEN.lastIndex = index;
     const m = PATH_TOKEN.exec(path);
-    if (!m) throw new Error(`json path "${path}" is not supported at position ${index} (use $, .key, [n], [*])`);
+    if (!m) throw new Error(`json path "${path}" is not supported at position ${index} (use $, .key, [n], [-n], [*])`);
     index = PATH_TOKEN.lastIndex;
     const next = [];
     for (const value of current) {
@@ -56,8 +57,10 @@ export function jsonPath(obj, path) {
         if (value !== null && typeof value === 'object' && !Array.isArray(value) && m[1] in value) next.push(value[m[1]]);
       } else if (m[2] === '*') {
         if (Array.isArray(value)) next.push(...value);
-      } else if (Array.isArray(value) && Number(m[2]) < value.length) {
-        next.push(value[Number(m[2])]);
+      } else if (Array.isArray(value)) {
+        const n = Number(m[2]);
+        const i = n < 0 ? value.length + n : n;
+        if (i >= 0 && i < value.length) next.push(value[i]);
       }
     }
     current = next;
@@ -96,13 +99,41 @@ function checkStatus(expect, status) {
   return fail(`status ${status}, expected ${oneOf.join(' or ')}`);
 }
 
+/**
+ * Narrows the values a json item reaches. `where: {path, equals}` keeps only
+ * the elements whose relative `path` (from the element, so it starts with `$`)
+ * yields exactly `equals`; `select` then replaces each kept element by what
+ * its relative path reaches. Both are optional and apply before the operators.
+ */
+function selectMatches(item, matches) {
+  let values = matches;
+  if (item.where) {
+    if (typeof item.where.path !== 'string' || !('equals' in item.where)) {
+      throw new Error(`json check at ${item.path} has a where without path and equals`);
+    }
+    values = values.filter((v) => {
+      const found = jsonPath(v, item.where.path);
+      return found.length === 1 && isDeepStrictEqual(found[0], item.where.equals);
+    });
+  }
+  if (item.select !== undefined) values = values.flatMap((v) => jsonPath(v, item.select));
+  return values;
+}
+
+function describePath(item) {
+  let text = item.path;
+  if (item.where) text += `[where ${item.where.path} = ${show(item.where.equals)}]`;
+  if (item.select !== undefined) text += item.select.slice(1);
+  return text;
+}
+
 /** @returns {CheckResult} */
 function checkJsonItem(item, json) {
   const ops = JSON_OPERATORS.filter((op) => op in item);
   if (ops.length === 0) throw new Error(`json check at ${item.path} has no operator (${JSON_OPERATORS.join(', ')})`);
   if (json === undefined) return fail(`${item.path}: body is not JSON`);
-  const matches = jsonPath(json, item.path);
-  const at = (text) => fail(`${item.path}: ${text}`);
+  const matches = selectMatches(item, jsonPath(json, item.path));
+  const at = (text) => fail(`${describePath(item)}: ${text}`);
 
   for (const op of ops) {
     const want = item[op];

@@ -51,19 +51,25 @@
       "id": "first",
       "instance": "{{iid}}",
       "last_event_id": 0,
-      "max": 1,
+      "until_state": [
+        "EXECUTING"
+      ],
       "capture": {
-        "first_id": "$.events[0].id"
+        "last_id": "$.events[-1].id"
       },
       "expect": {
         "json": [
           {
             "path": "$.ended",
-            "equals": "count"
+            "equals": "state"
           },
           {
-            "path": "$.events[0].id",
+            "path": "$.events[*].id",
             "type": "integer"
+          },
+          {
+            "path": "$.events[-1].data.state",
+            "equals": "EXECUTING"
           }
         ]
       }
@@ -72,7 +78,7 @@
       "kind": "sse_read",
       "id": "rest",
       "instance": "{{iid}}",
-      "last_event_id": "{{first_id}}",
+      "last_event_id": "{{last_id}}",
       "timeout_s": 1,
       "expect": {
         "json": [

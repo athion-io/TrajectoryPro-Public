@@ -71,6 +71,33 @@ function ctx({ fetch, clock = fakeClock({ auto: true }), target: t = target(), v
   return { target: t, vars: { roles: t.roles, uniq: 'u1', ...vars }, apiKey: 'secret-key', fetch, clock, log: () => {}, responses: new Map() };
 }
 
+describe('templated expect', () => {
+  test('placeholders in expect values resolve from captured vars before grading', async () => {
+    const fetch = stubFetch(() => jsonResponse(200, instanceBody('EXECUTING')));
+    const step = { kind: 'request', method: 'GET', path: '/instances/{{iid}}', expect: { status: 200, json: [{ path: '$.data.instance_id', equals: '{{iid}}' }] } };
+    const good = await runStep(step, ctx({ fetch, vars: { iid: 'inst-42' } }));
+    assert.equal(good.check.outcome, 'pass', good.check.reason);
+    const bad = await runStep(step, ctx({ fetch, vars: { iid: 'inst-7' } }));
+    assert.equal(bad.check.outcome, 'fail');
+    assert.match(bad.check.reason, /inst-42.*inst-7/);
+  });
+
+  test('a templated expected value is still redacted in the failure reason', async () => {
+    const fetch = stubFetch(() => jsonResponse(200, instanceBody('EXECUTING')));
+    const step = { kind: 'request', method: 'GET', path: '/instances/inst-42', expect: { json: [{ path: '$.data.instance_id', equals: '{{ref}}' }] } };
+    const result = await runStep(step, ctx({ fetch, vars: { ref: 'inst-9?token=hunter2' } }));
+    assert.equal(result.check.outcome, 'fail');
+    assert.doesNotMatch(result.check.reason, /hunter2/);
+    assert.match(result.check.reason, /token=\*\*\*/);
+  });
+
+  test('an unknown placeholder in expect is an error, not a silent pass', async () => {
+    const fetch = stubFetch(() => jsonResponse(200, instanceBody('EXECUTING')));
+    const step = { kind: 'request', method: 'GET', path: '/instances/inst-42', expect: { json: [{ path: '$.data.instance_id', equals: '{{nope}}' }] } };
+    await assert.rejects(runStep(step, ctx({ fetch })), /nope/);
+  });
+});
+
 describe('step kinds', () => {
   test('wait_state and sse_read are registered', () => {
     assert.deepEqual(Object.keys(STEP_KINDS).sort(), ['capture', 'request', 'sse_read', 'wait_state']);

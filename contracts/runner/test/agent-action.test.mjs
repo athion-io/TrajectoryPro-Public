@@ -51,9 +51,9 @@ function drivingClock(start = 1_000) {
   };
 }
 
-async function runAgentAction({ defects = [], only } = {}) {
+async function runAgentAction({ defects = [], only, toy: toyOpts = {} } = {}) {
   const clock = drivingClock();
-  const toy = makeToy({ apiKey: 'k', defects, clock });
+  const toy = makeToy({ apiKey: 'k', defects, clock, ...toyOpts });
   clock.attach(toy);
   let fixtures = await loadFixtures(ROOT, { categories: ['agent-action'] });
   if (only) fixtures = fixtures.filter((f) => only.includes(f.test_id));
@@ -120,6 +120,23 @@ describe('agent-action fixtures vs clean toy', () => {
   test('evidence never contains the API key', () => {
     const text = JSON.stringify(report);
     assert.ok(!/"x-api-key":\s*"k"/i.test(text), 'key is redacted');
+  });
+});
+
+describe('agent-action fixtures vs a toy whose event ids start at 1', () => {
+  // agt-031 must not depend on the first buffered frame carrying id 0: with
+  // two buffered frames (STARTING #1, EXECUTING #2) a replay from the last id
+  // seen must still be empty.
+  test('agt-031 replay check passes when STARTING is #1 and EXECUTING is #2', async () => {
+    const report = await runAgentAction({ only: ['agt-031'], toy: { eventIdBase: 1 } });
+    const r = byId(report)['agt-031'];
+    assert.equal(r.outcome, 'pass', r.reason);
+  });
+
+  test('the whole clean suite is unaffected by the id base', async () => {
+    const report = await runAgentAction({ toy: { eventIdBase: 1 } });
+    assert.equal(describeFails(report), '');
+    assert.equal(exitCode(report), 0);
   });
 });
 

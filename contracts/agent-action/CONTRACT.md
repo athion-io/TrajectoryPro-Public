@@ -20,10 +20,16 @@ Each fixture names the clause it checks in `tags` and its source in `source`.
 
 **C-AGT-1.** The container serves the REST surface under a base URL ending in
 `/trajectory/v1` (REST §1.1). Any other protocol version prefix, including
-`/trajectory/v2/…`, answers `404` (REST §5.4). Paths are compared after URL
-normalisation, so a client that reaches `/trajectory/v2/health` through
-`/trajectory/v1/../v2/health` still gets `404` — fixture agt-051 relies on
-this.
+`/trajectory/v2/…`, answers `404` (REST §5.4).
+
+Fixture agt-051 requests the step path `/../v2/health`, which the runner
+appends to the target's `base_url` (trailing slashes stripped); `fetch`
+then normalises the `..` segment per the WHATWG URL standard before sending.
+It therefore assumes (a) `base_url` ends in `/trajectory/v1`, so the request
+line on the wire is `/trajectory/v2/health`, and (b) no proxy in front of the
+container rewrites that path. A target whose
+`base_url` has a different shape will send a different URL and the fixture's
+result is meaningless for it; set `base_url` as REST §1.1 prescribes.
 
 Covered: REST-01..09 and the SSE instance stream (REST-06/07). Not covered
 here: action properties (REST-10..12) and the outbound-only variant; those have
@@ -78,13 +84,14 @@ a subset of the seven canonical commands (`PAUSE`, `RESUME`, `HOLD`, `UNHOLD`,
 | fixture | level | checks |
 |---|---|---|
 | agt-004 | SHOULD | REST-02 keys; commands ⊆ canonical |
-| agt-005 | SHOULD | capabilities carry `visibility`/`supported_commands`; the opaque role's instance reports `visibility: "opaque"` |
+| agt-005 | SHOULD | the opaque role advertises `supported_commands: ["ABORT"]` and its instance reports `visibility: "opaque"` |
 
 ## 5. Invoke
 
 **C-AGT-5.** `POST /actions/{action_oid}/invoke` (REST-03) with
-`environment_oid`, `workflow_instance_id`, `step_instance_id` and `inputs`
-answers `201` with `data.instance_id` (string). A body without
+`environment_oid`, `workflow_instance_id`, `step_instance_id`, `step_oid` and
+`input_parameters` (an array of `{name, value}`) answers `201` with
+`data.instance_id` (string). A body without
 `environment_oid` answers `400 VALIDATION_ERROR`. An unknown `action_oid`
 answers `404` with an error code; the code itself is implementation-defined
 (`NOT_FOUND` or `ACTION_NOT_FOUND`, REST §1.6).
@@ -112,7 +119,7 @@ be empty) and `data.created_at`. An unknown id answers
 
 | fixture | level | checks |
 |---|---|---|
-| agt-013 | MUST | REST-04 keys; canonical `state.current` |
+| agt-013 | MUST | REST-04 keys; `instance_id` is the invoked id; canonical `state.current` |
 | agt-014 | MUST | unknown id → 404 `INSTANCE_NOT_FOUND` |
 
 ## 7. Commands and the state table
@@ -126,7 +133,11 @@ an allowed variance. The fixture never asserts the code string.
 
 Accepted commands settle as follows (REST §3.2). "Settles" means the
 instance reaches the target state within the wait budget; transient states on
-the way MUST be canonical.
+the way MUST be canonical. The transient column is checked only when the
+container replays it: agt-023 and agt-025 read the stream with
+`Last-Event-ID: 0`, so a `RESUMING`/`UNHOLDING` frame is graded if buffered,
+and a container that settles without emitting one still passes (the read then
+ends in `timeout` or `end`, both accepted).
 
 | command | from | transient (optional) | settles in |
 |---|---|---|---|
@@ -139,7 +150,12 @@ the way MUST be canonical.
 | CLEAR | STOPPED, ABORTED, COMPLETED | — | instance removed, or still terminal |
 
 After `CLEAR` the instance either disappears (`404 INSTANCE_NOT_FOUND`) or
-remains in its terminal state; it never shows a clearing state.
+remains in its terminal state; it never shows a clearing state. agt-027
+asserts the `200`-or-`404` answer only: the runner has no conditional check,
+so it cannot read `state.current` on a body that may be an error envelope.
+"No clearing state on the wire" is covered up to the `CLEAR` by the same
+fixture's canonical-state checks (wait_state and the SSE read to `ABORTED`),
+not by the post-`CLEAR` GET.
 
 | fixture | level | checks |
 |---|---|---|
@@ -150,7 +166,7 @@ remains in its terminal state; it never shows a clearing state.
 | agt-024 | MUST | HOLD → HELD |
 | agt-025 | MUST | UNHOLD → EXECUTING |
 | agt-026 | MUST | STOP → STOPPED |
-| agt-027 | MUST | ABORT → ABORTED; CLEAR accepted; never `CLEARING` |
+| agt-027 | MUST | ABORT → ABORTED (canonical states only); CLEAR accepted; then 200 or 404 |
 | agt-028 | SHOULD | HOLD while COMPLETING refused (skipped if no window observed) |
 
 ## 8. Server-Sent Events
@@ -161,6 +177,16 @@ remains in its terminal state; it never shows a clearing state.
 frames carry `outputs` (same shape as §6). Frame ids increase within a
 stream. The terminal `state_change` (`COMPLETED`, `STOPPED`, `ABORTED`) is the
 last frame; when the action has outputs an `output` frame precedes it.
+agt-034 invokes `fast_action` (which has outputs) and asserts, by negative
+index, that `events[-1]` is a terminal `state_change` and `events[-2]` is an
+`output` frame whose `outputs[].name` are strings.
+
+Replay (REST §4.1–4.2): agt-031 reads the stream twice. The first read
+(`Last-Event-ID: 0`, until `EXECUTING`) captures the id of the last frame
+received; the second read replays from that id and MUST return no frames.
+The fixture never assumes a particular starting id, so containers whose ids
+begin at 0, 1 or any other integer are graded alike (the runner's own test
+drives the toy with ids starting at 1 to prove this).
 
 Replay (REST §4.1–4.2): a connection **without** `Last-Event-ID` starts at the
 next live event and replays nothing; a connection with `Last-Event-ID: n`
@@ -184,7 +210,7 @@ times out cannot pass silently (checked by `runner/test/levels.test.mjs`).
 | agt-031 | MUST | `Last-Event-ID: n` replays only `id > n` |
 | agt-032 | IMPL-DEFINED | first `previous_state` null or canonical (D11) |
 | agt-033 | SHOULD | opaque instance stream → 4xx envelope |
-| agt-034 | MUST | terminal frame last; output frame before it |
+| agt-034 | MUST | `events[-1]` terminal state_change; `events[-2]` output with named outputs |
 
 ## 9. List and delete
 
@@ -222,7 +248,9 @@ Known variants, listed *as allowed*:
   name is `UNPAUSING` MUST map it (agt-023).
 - Implementations without an internal STOPPED MUST still report `STOPPED`
   after `STOPPING` (agt-026).
-- Internal clearing states (`CLEARING`) MUST NOT appear on the wire (agt-027).
+- Internal clearing states (`CLEARING`) MUST NOT appear on the wire. agt-027
+  checks every state it sees up to the `CLEAR` is canonical; it cannot inspect
+  the state after `CLEAR` because the instance may legitimately be gone (§7).
 - HOLD from `COMPLETING` MUST be rejected on the wire even if the internal
   machine allows it (agt-028; SHOULD because a container may never expose a
   `COMPLETING` window long enough to observe).

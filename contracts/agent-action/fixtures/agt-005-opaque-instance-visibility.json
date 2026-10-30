@@ -29,6 +29,17 @@
           {
             "path": "$.data.environments[*].actions[*].supported_commands",
             "type": "array"
+          },
+          {
+            "path": "$.data.environments[*].actions[*]",
+            "where": {
+              "path": "$.action_oid",
+              "equals": "{{roles.opaque_action}}"
+            },
+            "select": "$.supported_commands",
+            "equals": [
+              "ABORT"
+            ]
           }
         ]
       }

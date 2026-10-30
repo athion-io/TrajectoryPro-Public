@@ -1,6 +1,6 @@
 {
   "test_id": "agt-027",
-  "name": "ABORT from EXECUTING settles in ABORTED; CLEAR is then accepted and the instance is gone or still terminal, never CLEARING",
+  "name": "ABORT from EXECUTING settles in ABORTED; CLEAR is then accepted and the instance is gone (404) or still readable (200)",
   "category": "agent-action",
   "level": "MUST",
   "source": "REST §3.2",

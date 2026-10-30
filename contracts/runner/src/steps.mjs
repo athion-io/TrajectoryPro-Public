@@ -100,14 +100,18 @@ function errorCode(json) {
   return json && typeof json === 'object' && json.error && typeof json.error === 'object' ? (json.error.code ?? null) : null;
 }
 
-/** Finishes a step that produced a response: id, capture, evidence, expect. */
+/**
+ * Finishes a step that produced a response: id, capture, evidence, expect.
+ * Captures are applied first so `expect` values may name them (`"{{iid}}"`);
+ * `check` redacts any `token=` value a templated reason would otherwise quote.
+ */
 function finish(step, ctx, response, method, path) {
   if (step.id) ctx.responses.set(step.id, response);
   applyCapture(step.capture, response, ctx.vars);
   return {
     response,
     evidence: { method, path: redactUrl(path), status: response.status, code: errorCode(response.json) },
-    check: check(step.expect, response),
+    check: check(step.expect === undefined ? undefined : template(step.expect, ctx.vars), response),
   };
 }
 

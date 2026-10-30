@@ -98,10 +98,11 @@ const CORS_HEADERS = {
 };
 
 /**
- * @param {{apiKey?: string, defects?: Set<string>|string[], clock?: {now(): number}}} [opts]
+ * @param {{apiKey?: string, defects?: Set<string>|string[], clock?: {now(): number}, eventIdBase?: number}} [opts]
+ *   eventIdBase: id of the first SSE frame (default 0); tests use 1 to prove fixtures do not depend on it.
  * @returns {{fetch(url: string|URL, init?: RequestInit): Promise<Response>, tick(ms: number): Promise<void>, defects: Set<string>, state: object}}
  */
-export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
+export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase = 0 } = {}) {
   defects = defects instanceof Set ? defects : new Set(defects);
   for (const d of defects) {
     if (!DEFECTS.includes(d)) throw new Error(`makeToy: unknown defect '${d}' (known: ${DEFECTS.join(', ')})`);
@@ -147,7 +148,7 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock } = {}) {
   function bus(id) {
     let b = buses.get(id);
     if (!b) {
-      b = { events: [], nextId: 0, subscribers: new Set() };
+      b = { events: [], nextId: eventIdBase, subscribers: new Set() };
       buses.set(id, b);
     }
     return b;

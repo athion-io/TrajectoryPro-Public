@@ -125,12 +125,22 @@
         },
         "json": {
           "type": "array",
-          "description": "Checks on the JSON body. path is a small JSONPath subset: $, .key, [n], [*].",
+          "description": "Checks on the JSON body. path is a small JSONPath subset: $, .key, [n], [-n] (from the end), [*]. Values in the item (equals, in, where.equals, ...) may use {{var}} placeholders; they are resolved from captured variables before grading.",
           "items": {
             "type": "object",
             "required": ["path"],
             "properties": {
               "path": { "type": "string" },
+              "where": {
+                "type": "object",
+                "required": ["path", "equals"],
+                "properties": {
+                  "path": { "type": "string", "description": "JSONPath relative to each element reached by path (starts with $)." },
+                  "equals": {}
+                },
+                "description": "Keeps only the elements reached by path whose relative where.path yields exactly where.equals. Applied before select and the operators."
+              },
+              "select": { "type": "string", "description": "JSONPath relative to each (kept) element; the operators then grade what it reaches." },
               "present": { "type": "boolean" },
               "absent": { "type": "boolean" },
               "equals": {},

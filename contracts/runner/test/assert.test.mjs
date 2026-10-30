@@ -46,6 +46,13 @@ describe('jsonPath', () => {
     assert.deepEqual(jsonPath(body, '$.items[*].id'), ['x', 'y']);
   });
 
+  test('[-n] indexes from the end of an array', () => {
+    assert.deepEqual(jsonPath(body, '$.items[-1].id'), ['y']);
+    assert.deepEqual(jsonPath(body, '$.items[-2].id'), ['x']);
+    assert.deepEqual(jsonPath(body, '$.items[-3]'), []);
+    assert.deepEqual(jsonPath(body, '$.data.instance_id[-1]'), []);
+  });
+
   test('a missing key gives no matches', () => {
     assert.deepEqual(jsonPath(body, '$.data.missing'), []);
     assert.deepEqual(jsonPath(body, '$.items[5].id'), []);
@@ -131,6 +138,24 @@ describe('check: json', () => {
     const r = bad({ path: '$.data.state', equals: 'HELD' });
     assert.match(r.reason, /EXECUTING/);
     assert.match(r.reason, /HELD/);
+  });
+
+  test('where keeps only matches whose sub-path equals the value; select then picks a sub-path', () => {
+    const caps = { data: { envs: [{ actions: [{ oid: 'a', cmds: ['PAUSE', 'ABORT'] }, { oid: 'b', cmds: ['ABORT'] }] }] } };
+    const r = (item) => check({ json: [item] }, response(200, caps));
+    const base = { path: '$.data.envs[*].actions[*]', where: { path: '$.oid', equals: 'b' } };
+    assert.equal(r({ ...base, select: '$.cmds', equals: ['ABORT'] }).outcome, 'pass');
+    assert.equal(r({ ...base, type: 'object' }).outcome, 'pass');
+    const wrong = r({ ...base, select: '$.cmds', equals: ['PAUSE'] });
+    assert.equal(wrong.outcome, 'fail');
+    assert.match(wrong.reason, /\["ABORT"\]/);
+    const none = r({ path: '$.data.envs[*].actions[*]', where: { path: '$.oid', equals: 'zzz' }, select: '$.cmds', type: 'array' });
+    assert.equal(none.outcome, 'fail');
+    assert.match(none.reason, /nothing at path/);
+    assert.match(none.reason, /oid/);
+    const noSub = r({ ...base, select: '$.missing', type: 'array' });
+    assert.equal(noSub.outcome, 'fail');
+    assert.match(noSub.reason, /nothing at path/);
   });
 
   test('equals with no value at the path fails', () => {
