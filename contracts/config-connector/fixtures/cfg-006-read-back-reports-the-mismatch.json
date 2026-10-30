@@ -51,6 +51,10 @@
             "length_max": 1
           },
           {
+            "path": "$.data.read_back.mismatches[1]",
+            "absent": true
+          },
+          {
             "path": "$.data.read_back.mismatches[0].item",
             "equals": "FAKE_PUMP_A/SETPOINT"
           },

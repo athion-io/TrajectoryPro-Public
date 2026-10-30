@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadFixtures, loadTarget } from '../src/load.mjs';
 import { runSuite, exitCode } from '../src/run.mjs';
-import { makeToy, DEFECTS } from './toy-container.mjs';
+import { makeToy, DEFECTS, applyChanges, ConnectorError } from './toy-container.mjs';
 
 const RUNNER = fileURLToPath(new URL('..', import.meta.url));
 const CONTRACTS = path.resolve(RUNNER, '..');
@@ -34,7 +34,7 @@ const TARGET = path.join(CONTRACTS, 'targets', 'toy.target.json');
 const FILES = path.join(CONTRACTS, 'config-connector', 'fixtures', 'files');
 const API_KEY = 'toy-api-key-fixture';
 
-const SYNTHETIC_IDS = ['cfg-001', 'cfg-002', 'cfg-003', 'cfg-004', 'cfg-005', 'cfg-006'];
+const SYNTHETIC_IDS = ['cfg-001', 'cfg-002', 'cfg-003', 'cfg-004', 'cfg-005', 'cfg-006', 'cfg-007', 'cfg-008'];
 const LIVE_IDS = ['cfg-100', 'cfg-101', 'cfg-102', 'cfg-103'];
 const EXPECTED_IDS = [...SYNTHETIC_IDS, ...LIVE_IDS];
 const PROFILES = ['deltav-fhx', 'mimic-xml'];
@@ -47,6 +47,8 @@ const GOLDEN = {
   'cfg-004': { before: 'deltav-fhx/fake-pump.before.fhx' },
   'cfg-005': { before: 'mimic-xml/fake-tank.before.xml', after: 'mimic-xml/fake-tank.after-cfg-005.xml' },
   'cfg-006': { before: 'deltav-fhx/fake-pump.before.fhx' },
+  'cfg-007': { before: 'deltav-fhx/fake-pump.before.fhx' },
+  'cfg-008': { before: 'deltav-fhx/fake-pump.before.fhx' },
 };
 
 function bytes(rel) {
@@ -114,7 +116,9 @@ describe('config-connector fixtures', () => {
       assert.equal(f.steps[0].method, 'POST', f.test_id);
       assert.equal(f.steps[0].path, '/connector/apply', f.test_id);
       assert.equal(f.steps[0].body.mode, 'test', `${f.test_id} is test mode only (C-CFG-3)`);
-      assert.ok(PROFILES.includes(f.steps[0].body.profile), `${f.test_id} names a known profile (C-CFG-5)`);
+      if (f.test_id !== 'cfg-007') {
+        assert.ok(PROFILES.includes(f.steps[0].body.profile), `${f.test_id} names a known profile (C-CFG-5)`);
+      }
     }
   });
 
@@ -126,7 +130,7 @@ describe('config-connector fixtures', () => {
   });
 
   test('both profiles are exercised by the synthetic fixtures', () => {
-    const seen = new Set(SYNTHETIC_IDS.map((id) => map.get(id).steps[0].body.profile));
+    const seen = new Set(SYNTHETIC_IDS.map((id) => map.get(id).steps[0].body.profile).filter((p) => PROFILES.includes(p)));
     assert.deepEqual([...seen].sort(), PROFILES);
   });
 
@@ -179,6 +183,26 @@ describe('config-connector fixtures', () => {
     assert.equal(map.get('cfg-006').steps[0].expect.status, 200);
     assert.equal(expectation(map.get('cfg-006').steps[0], '$.data.read_back.ok')?.equals, false);
     assert.equal(typeof expectation(map.get('cfg-006').steps[0], '$.data.read_back.mismatches[0].item')?.equals, 'string');
+    assert.equal(expectation(map.get('cfg-006').steps[0], '$.data.read_back.mismatches[1]')?.absent, true, 'cfg-006 pins exactly one mismatch');
+  });
+
+  test('cfg-007 is the unknown-profile case (C-CFG-5) and cfg-008 the multi-change stale case (§1.3)', () => {
+    const unknown = map.get('cfg-007');
+    assert.equal(unknown.source, 'C-CFG-5');
+    assert.ok(!PROFILES.includes(unknown.steps[0].body.profile), 'cfg-007 names a profile nobody has');
+    assert.equal(unknown.steps[0].expect.status, 400);
+    assert.equal(expectation(unknown.steps[0], '$.error.code')?.equals, 'VALIDATION_ERROR');
+    assert.equal(expectation(unknown.steps[0], '$.data')?.absent, true);
+
+    const multi = map.get('cfg-008');
+    assert.equal(multi.source, 'C-CFG-1');
+    const changes = multi.steps[0].body.changes;
+    assert.equal(changes.length, 2, 'cfg-008 sends two changes');
+    assert.notEqual(changes[0].item, changes[1].item);
+    assert.equal(multi.steps[0].expect.status, 409);
+    assert.equal(expectation(multi.steps[0], '$.error.code')?.equals, 'STALE_VALUE');
+    assert.equal(expectation(multi.steps[0], '$.error.details.item')?.equals, changes[1].item, 'the stale item is the second one');
+    assert.equal(expectation(multi.steps[0], '$.data')?.absent, true, 'a stale item anywhere in the list returns no after file');
   });
 
   test('the clean toy passes every synthetic fixture and skips the live ones', async () => {
@@ -226,5 +250,62 @@ describe('config-connector fixtures', () => {
   test('the report never contains the API key', async () => {
     const { report } = await runToy();
     assert.ok(!JSON.stringify(report).includes(API_KEY), 'api key leaked');
+  });
+});
+
+describe('toy applyChanges edges', () => {
+  const FHX = [
+    '/* synthetic */',
+    'MODULE NAME="FAKE_X" {',
+    '  ATTRIBUTE_INSTANCE NAME="SPXA" { VALUE { CV=2 } }',
+    '  ATTRIBUTE_INSTANCE NAME="SP.A" { VALUE { CV=1 } }',
+    '  ATTRIBUTE_INSTANCE NAME="LEVEL" { VALUE { CV=3 } }',
+    '}',
+    '',
+  ].join('\n');
+  const change = (item, from, to) => ({ platform: 'deltav-fhx', item, from, to });
+
+  test('a parameter name is matched literally, not as a RegExp', () => {
+    const { after, read_back } = applyChanges('deltav-fhx', FHX, [change('FAKE_X/SP.A', '1', '9')]);
+    assert.equal(read_back.ok, true);
+    assert.match(after, /NAME="SP\.A" \{ VALUE \{ CV=9 \}/);
+    assert.match(after, /NAME="SPXA" \{ VALUE \{ CV=2 \}/, 'SPXA is not SP.A');
+    assert.throws(
+      () => applyChanges('deltav-fhx', FHX, [change('FAKE_X/SP?A', '1', '9')]),
+      (err) => err instanceof ConnectorError && err.code === 'ITEM_NOT_FOUND',
+    );
+  });
+
+  test('the same item twice in one request is a VALIDATION_ERROR and nothing is written', () => {
+    assert.throws(
+      () => applyChanges('deltav-fhx', FHX, [change('FAKE_X/LEVEL', '3', '4'), change('FAKE_X/LEVEL', '3', '5')]),
+      (err) => err instanceof ConnectorError && err.status === 400 && err.code === 'VALIDATION_ERROR' && err.details.item === 'FAKE_X/LEVEL',
+    );
+  });
+
+  test('two distinct changes are both applied and both read back', () => {
+    const { after, read_back } = applyChanges('deltav-fhx', FHX, [change('FAKE_X/LEVEL', '3', '30'), change('FAKE_X/SPXA', '2', '20')]);
+    assert.equal(read_back.ok, true);
+    assert.deepEqual(read_back.mismatches, []);
+    assert.match(after, /NAME="LEVEL" \{ VALUE \{ CV=30 \}/);
+    assert.match(after, /NAME="SPXA" \{ VALUE \{ CV=20 \}/);
+  });
+
+  test('a file that is not valid UTF-8 is refused rather than silently re-encoded', async () => {
+    const toy = makeToy({ apiKey: API_KEY });
+    const res = await toy.fetch('http://toy/conformance/v1/connector/apply', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': API_KEY },
+      body: JSON.stringify({
+        profile: 'deltav-fhx',
+        mode: 'test',
+        file_b64: Buffer.from([0xff, 0xfe, 0x0a]).toString('base64'),
+        changes: [change('FAKE_X/LEVEL', '3', '4')],
+      }),
+    });
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.error.code, 'VALIDATION_ERROR');
+    assert.match(body.error.message, /UTF-8/);
   });
 });

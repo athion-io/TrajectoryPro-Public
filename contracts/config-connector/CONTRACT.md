@@ -36,7 +36,7 @@ Fixtures live in [`fixtures/`](fixtures/), one per file,
 
 ### 1.1 The apply request
 
-Every fixture is one call to the conformance probe (§4):
+Every fixture is one call to the conformance probe (§3):
 
 ```json
 POST {probe_url}/connector/apply
@@ -56,7 +56,7 @@ POST {probe_url}/connector/apply
   bytes it was given and returns them; it never imports into a live system
   (C-CFG-3). Other modes are out of scope for this contract.
 - `file_b64` is the exported file, standard base64 (RFC 4648 §4, with
-  padding) of the raw bytes. Live fixtures (§5) replace it with `source`.
+  padding) of the raw bytes. Live fixtures (§4) replace it with `source`.
 - `item` is `<object>/<parameter>`, split at the **last** slash. For
   `deltav-fhx` the object is a `MODULE NAME` and the parameter an
   `ATTRIBUTE_INSTANCE NAME`; for `mimic-xml` the object is an `<object
@@ -93,8 +93,8 @@ Refusals use the REST error envelope (`docs/REST_Protocol.md` §1.5) with
 | status | code | when | `details` |
 |---|---|---|---|
 | 409 | `STALE_VALUE` | an item's current value is not `from` (C-CFG-1) | `item`, `expected` (= `from`), `actual` |
-| 400 | `ITEM_NOT_FOUND` | an item is not in the file | `item` |
-| 400 | `VALIDATION_ERROR` | malformed body, unknown profile, mode other than `test`, missing `file_b64` | — |
+| 400 | `ITEM_NOT_FOUND` | an item is not in the file (C-CFG-1) | `item` |
+| 400 | `VALIDATION_ERROR` | malformed body, unknown profile (C-CFG-5), mode other than `test`, missing `file_b64`, the same item named twice (§1.3) | `item` when an item is at fault, else — |
 
 A refusal has no `data`; the file is untouched (nothing was written, so
 there is nothing to return).
@@ -103,8 +103,13 @@ there is nothing to return).
 
 Every change is checked (item present, value equals `from`) **before** any
 is applied, so a stale or unknown item anywhere in the list refuses the
-whole request and leaves the file as it was. The fixtures here use one
-change per request; the rule matters for the multi-change case.
+whole request and leaves the file as it was. cfg-008 is the multi-change
+case: two changes, the second stale, nothing written.
+
+A change list that names the same item more than once is ambiguous (which
+`to` wins, and what should the first read back as?) and is refused `400
+VALIDATION_ERROR` with `details {item}` before anything is checked or
+written.
 
 ### 1.4 Synthetic files
 
@@ -122,16 +127,46 @@ in the fixtures.
 Golden "after" files sit beside each "before" file, one per fixture that
 patches it; each differs from its "before" on exactly one line.
 
+#### Profile rules
+
+A live control system does not store every value exactly as written: an
+out-of-range setpoint is clamped, a string is truncated, a number is
+re-rendered. C-CFG-2 exists because of that gap, and in `test` mode there
+is no live system to open it. Each synthetic profile therefore carries
+**profile rules** — the normalisation a test-mode connector for that
+profile MUST apply when it writes, standing in for the live system — so
+that read-back can be tested against a file alone.
+
+| profile | rule |
+|---|---|
+| `deltav-fhx` | A write to a module's `SETPOINT` MUST be clamped to that module's `HI_LIMIT` when the file holds one and the written value, read as a number, exceeds it. The written text is the `HI_LIMIT` text as it appears in the file (`CV=90.0` → `"90.0"`), so the clamped item reads back as `HI_LIMIT`, not as `to`. |
+| `mimic-xml` | None; every write is stored verbatim. |
+
+The rules are part of the profile, not of the vendor: they say nothing
+about what a real DeltaV controller does. They are also the only
+behaviour here that a connector cannot infer from the file bytes alone,
+which is why they are written down: a connector that honours the rule and
+reads back honestly (C-CFG-2) passes cfg-006; one that honours the rule
+but reports what it *asked* to write fails it; one that skips the rule
+writes `150.0`, reads back `150.0`, and fails it too — as it should, since
+a connector that does not model the normalisation it is told about is
+not an honest proxy for the live system. Live-vendor fixtures (§4) do not
+use these rules; there the real system does the normalising.
+
 ## 2. Clauses
 
-- **C-CFG-1 (stale `from` refused).** The connector MUST refuse a change
-  whose item does not currently hold `from`, with `409 STALE_VALUE` and
-  `details {item, expected, actual}`, and MUST change nothing.
+- **C-CFG-1 (stale or unknown item refused).** The connector MUST refuse a
+  change whose item does not currently hold `from`, with `409 STALE_VALUE`
+  and `details {item, expected, actual}`, or whose item the file does not
+  contain, with `400 ITEM_NOT_FOUND` and `details {item}`; in either case
+  it MUST change nothing, whatever else is in the list (§1.3).
 - **C-CFG-2 (honest read-back).** After writing, the connector MUST
   re-read every changed item from the result and return `read_back {ok,
   mismatches[{item, expected, actual}]}`. `ok` MUST be `true` only if every
   item reads back as its `to`. A connector MUST NOT report `ok: true` from
-  the values it *asked* to write.
+  the values it *asked* to write. In `test` mode the connector MUST apply
+  the profile rules (§1.4) when writing, so the read-back has something
+  honest to find.
 - **C-CFG-3 (content hashes; test mode never imports).** `before_hash`
   and `after_hash` MUST be SHA-256 of the file bytes, rendered
   `sha256:<hex>` (§1.2). In `test` mode the connector MUST NOT import,
@@ -140,8 +175,9 @@ patches it; each differs from its "before" on exactly one line.
   named item MUST be identical before and after. Same-named parameters on
   other objects are "not named" and MUST be untouched.
 - **C-CFG-5 (named profiles).** Profiles are named. The first two are
-  `deltav-fhx` and `mimic-xml`; an unknown profile is `400
-  VALIDATION_ERROR`.
+  `deltav-fhx` and `mimic-xml`, each with the profile rules in §1.4; an
+  unknown profile is `400 VALIDATION_ERROR` and nothing is read or
+  written.
 
 ## 3. Conformance probe
 
@@ -150,7 +186,7 @@ the target's `probe_url` (`contracts/targets/*.target.json`; the toy uses
 `…/conformance/v1`). Fixtures carry `requires: ["connector_probe"]` and
 their single request step is marked `probe: true`, so it is sent to
 `probe_url` instead of `base_url`. A target without `connector_probe`
-skips all ten. Probe endpoints use the same `X-API-Key` header and the
+skips all twelve. Probe endpoints use the same `X-API-Key` header and the
 REST envelope (`docs/REST_Protocol.md` §1.3, §1.5).
 
 **`POST {probe_url}/connector/apply`** — body as §1.1. Answers `200` as
@@ -166,17 +202,24 @@ nothing it does reaches a live system.
 | cfg-003 | C-CFG-1 | deltav-fhx | `from` 11.0, file holds 10.0 | `409 STALE_VALUE`, `details {item, expected "11.0", actual "10.0"}`, no `data` |
 | cfg-004 | C-CFG-1 | deltav-fhx | item `FAKE_PUMP_Z/SETPOINT` absent | `400 ITEM_NOT_FOUND`, `details.item`, no `data` |
 | cfg-005 | C-CFG-4 | mimic-xml | patch `FAKE_TANK_B/LEVEL_SP`; `FAKE_TANK_A` has the same parameter | golden after leaves `FAKE_TANK_A/LEVEL_SP` at 55 |
-| cfg-006 | C-CFG-2 | deltav-fhx | write 150.0 to a SETPOINT the system clamps to `HI_LIMIT` 90.0 | `read_back.ok false`, one mismatch `{expected "150.0", actual "90.0"}`; `after_hash ≠ before_hash` |
+| cfg-006 | C-CFG-2 | deltav-fhx | write 150.0 to a SETPOINT the profile rule clamps to `HI_LIMIT` 90.0 | `read_back.ok false`, exactly one mismatch `{expected "150.0", actual "90.0"}` (`mismatches[1]` absent); `after_hash ≠ before_hash` |
+| cfg-007 | C-CFG-5 | `no-such-profile` | profile nobody has | `400 VALIDATION_ERROR`, no `data` |
+| cfg-008 | C-CFG-1 | deltav-fhx | two changes; the second's `from` 21.0 is stale (file holds 20.0) | `409 STALE_VALUE`, `details.item` is the second item, no `data` |
 | cfg-100 | C-CFG-3 | deltav-fhx | **live**: download route | see §4 |
 | cfg-101 | C-CFG-3 | deltav-fhx | **live**: reload route | see §4 |
 | cfg-102 | C-CFG-3 | mimic-xml | **live**: download route | see §4 |
 | cfg-103 | C-CFG-3 | mimic-xml | **live**: reload route | see §4 |
 
 cfg-006 is the clause-2 teeth: a connector that reports success from what
-it *requested* passes cfg-001..005 and fails here. The toy stands in for
-the normalising system by clamping `SETPOINT` to the module's `HI_LIMIT`
-(§5); a real connector meets the same fixture by reading the file it
-actually produced.
+it *requested* passes cfg-001..005 and fails here. It depends on the
+`deltav-fhx` profile rule (§1.4): the connector clamps the `SETPOINT`
+write to `HI_LIMIT` because the profile says so, then reads the patched
+file back and finds `90.0`, not `150.0`. A connector that does **not**
+implement the rule writes `150.0`, reads back `150.0`, reports `ok: true`
+and fails this fixture — deliberately, since in `test` mode the profile
+rule is the only stand-in for the live system's normalisation, and a
+connector that ignores it has nothing for C-CFG-2 to be honest about.
+Re-reading the produced file is necessary but not sufficient.
 
 ## 4. Live-vendor fixtures (cfg-100..103)
 
@@ -200,12 +243,16 @@ plan 4; the ids, tags and clause are fixed. The toy does not implement
 
 The in-process toy (`contracts/runner/test/toy-container.mjs`) mounts the
 probe at `/conformance/v1` and patches with the exported pure function
-`applyChanges`, which knows the two profiles in §1.4 line by line. With no
-defects: **6 pass, 0 fail, 0 note, 4 skip** (the four live fixtures), exit
-`0`. The `lying-readback` defect reports `read_back.ok: true` with no
-mismatches regardless of what the file holds and fails exactly
-**cfg-006**; cfg-001..005 read back correctly either way. A copy of the
-toy target without `connector_probe` gives **0 pass, 0 fail, 0 note, 10
-skip**, exit `0`. A copy with `"live_vendor": true` runs cfg-100..103
+`applyChanges`, which knows the two profiles in §1.4 line by line,
+including the `deltav-fhx` clamp rule. The toy patches text and refuses a
+`file_b64` that is not valid UTF-8 with `400 VALIDATION_ERROR` rather
+than re-encoding it (the synthetic files are ASCII; a real connector
+patches bytes). With no defects: **8 pass, 0 fail, 0 note, 4 skip** (the
+four live fixtures), exit `0`. The `lying-readback` defect reports
+`read_back.ok: true` with no mismatches regardless of what the file holds
+and fails exactly **cfg-006**; the other synthetic fixtures read back
+correctly either way. A copy of the toy target without `connector_probe`
+gives **0 pass, 0 fail, 0 note, 12 skip**, exit `0`. A copy with
+`"live_vendor": true` runs cfg-100..103
 instead of skipping them; against the toy they fail (no live `source`),
 which is the intended behaviour of a target that claims more than it has.

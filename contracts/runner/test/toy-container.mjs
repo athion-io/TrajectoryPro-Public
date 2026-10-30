@@ -247,7 +247,7 @@ const COMMAND_PATH = {
 /** §3.1: the only terminal states; nothing is emitted after the terminal state_change. */
 const TERMINAL = new Set(['COMPLETED', 'STOPPED', 'ABORTED']);
 
-// ---------- plant-configuration connector (config-connector CONTRACT §4) ----------
+// ---------- plant-configuration connector (config-connector CONTRACT §3) ----------
 
 /** Thrown by applyChanges for a malformed request or a change that cannot be applied. */
 export class ConnectorError extends Error {
@@ -267,13 +267,16 @@ export class ConnectorError extends Error {
  * is rewritten. Neither is a vendor grammar: they are just enough for the
  * fixtures under config-connector/fixtures/files/.
  */
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export const CONNECTOR_PROFILES = Object.freeze({
   'deltav-fhx': {
     open: /^MODULE NAME="([^"]+)" \{$/,
     close: /^\}$/,
-    param: (name) => new RegExp(`^(\\s*ATTRIBUTE_INSTANCE NAME="${name}" \\{ VALUE \\{ CV=)([^ }]*)( \\} \\})$`),
-    // The fake "system" clamps SETPOINT to the module's HI_LIMIT, the way a
-    // real controller normalises an out-of-range write. cfg-006 relies on it.
+    param: (name) => new RegExp(`^(\\s*ATTRIBUTE_INSTANCE NAME="${escapeRe(name)}" \\{ VALUE \\{ CV=)([^ }]*)( \\} \\})$`),
+    // Profile rule (config-connector CONTRACT §1.4): a test-mode connector for
+    // deltav-fhx clamps SETPOINT to the module's HI_LIMIT, standing in for the
+    // live system's normalisation. cfg-006 relies on it.
     clamp: (object, param, value, read) => {
       if (param !== 'SETPOINT') return value;
       const limit = read(object, 'HI_LIMIT');
@@ -284,7 +287,7 @@ export const CONNECTOR_PROFILES = Object.freeze({
   'mimic-xml': {
     open: /^\s*<object name="([^"]+)">$/,
     close: /^\s*<\/object>$/,
-    param: (name) => new RegExp(`^(\\s*<param name="${name}">)([^<]*)(</param>)$`),
+    param: (name) => new RegExp(`^(\\s*<param name="${escapeRe(name)}">)([^<]*)(</param>)$`),
     clamp: (object, param, value) => value,
   },
 });
@@ -331,11 +334,14 @@ export function applyChanges(profileName, before, changes, { lie = false } = {})
   };
 
   const plan = [];
+  const seen = new Set();
   for (const change of changes) {
     for (const key of ['platform', 'item', 'from', 'to']) {
       if (typeof change?.[key] !== 'string') throw new ConnectorError(400, 'VALIDATION_ERROR', `change.${key} must be a string`);
     }
     if (change.platform !== profileName) throw new ConnectorError(400, 'VALIDATION_ERROR', `change.platform "${change.platform}" is not the profile`);
+    if (seen.has(change.item)) throw new ConnectorError(400, 'VALIDATION_ERROR', `item "${change.item}" appears more than once`, { item: change.item });
+    seen.add(change.item);
     const { object, param } = splitItem(change.item);
     const i = findLine(profile, lines, object, param);
     if (i < 0) throw new ConnectorError(400, 'ITEM_NOT_FOUND', `item "${change.item}" is not in the file`, { item: change.item });
@@ -788,15 +794,19 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
    * -> {data: {after_b64, before_hash, after_hash, read_back}}. Test mode
    * only: the toy has no live system to import into (C-CFG-3), so `mode`
    * other than "test" and a `source` instead of `file_b64` (the live route
-   * fixtures) are refused.
+   * fixtures) are refused. The toy patches text, so the file must be valid
+   * UTF-8; anything else is refused rather than re-encoded (which would be a
+   * collateral change under C-CFG-4). Real connectors patch bytes.
    */
   function handleConnectorApply({ body }) {
     if (!body || typeof body !== 'object') return fail(400, 'VALIDATION_ERROR', 'body must be an object');
     if (body.mode !== 'test') return fail(400, 'VALIDATION_ERROR', 'mode must be "test"');
     if (typeof body.file_b64 !== 'string' || body.file_b64 === '') return fail(400, 'VALIDATION_ERROR', 'file_b64 is required');
     const before = Buffer.from(body.file_b64, 'base64');
+    const text = before.toString('utf8');
+    if (!Buffer.from(text, 'utf8').equals(before)) return fail(400, 'VALIDATION_ERROR', 'file_b64 is not valid UTF-8; the toy patches text only');
     try {
-      const { after, read_back } = applyChanges(body.profile, before.toString('utf8'), body.changes, { lie: defects.has('lying-readback') });
+      const { after, read_back } = applyChanges(body.profile, text, body.changes, { lie: defects.has('lying-readback') });
       const afterBytes = Buffer.from(after, 'utf8');
       return ok(200, {
         after_b64: afterBytes.toString('base64'),
