@@ -17,7 +17,6 @@
 
 import { test, describe, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -127,22 +126,14 @@ describe('permission fixtures', () => {
   });
 
   test('a target without permission_probe skips every permission fixture', async () => {
-    const raw = JSON.parse(readFileSync(TARGET, 'utf8'));
-    raw.capabilities = raw.capabilities.filter((c) => c !== 'permission_probe');
-    const scratch = path.join(RUNNER, 'test', 'data', 'no-permission-probe.target.json');
-    const { writeFileSync, mkdirSync, rmSync } = await import('node:fs');
-    mkdirSync(path.dirname(scratch), { recursive: true });
-    writeFileSync(scratch, JSON.stringify(raw));
-    try {
-      const target = await loadTarget(scratch);
-      const { report } = await runToy({ target });
-      assert.equal(report.totals.skip, EXPECTED_IDS.length);
-      assert.equal(report.totals.pass, 0);
-      assert.equal(report.totals.fail, 0);
-      assert.equal(exitCode(report), 0);
-    } finally {
-      rmSync(scratch, { force: true });
-    }
+    // An in-memory copy of the loaded target; nothing is written to disk.
+    const target = structuredClone(await loadTarget(TARGET));
+    target.capabilities = target.capabilities.filter((c) => c !== 'permission_probe');
+    const { report } = await runToy({ target });
+    assert.equal(report.totals.skip, EXPECTED_IDS.length);
+    assert.equal(report.totals.pass, 0);
+    assert.equal(report.totals.fail, 0);
+    assert.equal(exitCode(report), 0);
   });
 
   test('the report never contains the API key', async () => {
@@ -196,6 +187,17 @@ describe('decidePermission is a pure function (C-PRM-5)', () => {
     assert.equal(decidePermission(req).reason, 'QUORUM_NOT_MET');
     req.resource.change.approvals = [{ by: 'u4', role: 'process_engineer' }, { by: 'u5', role: 'operations_lead' }];
     assert.deepEqual(decidePermission(req), { allowed: true, reason: 'OK' });
+  });
+
+  test('roles authorise verbs, subject kind does not: an agent holding operator may start', () => {
+    const req = base();
+    req.subject = { kind: 'agent', id: 'ag-1', roles: ['agent'], work_center: 'wc-a', mode: 'observe' };
+    assert.equal(decidePermission(req).reason, 'NO_ROLE', 'the agent role alone does not authorise start');
+    req.subject.roles = ['agent', 'operator'];
+    assert.deepEqual(decidePermission(req), { allowed: true, reason: 'OK' });
+    req.verb = 'invoke_action';
+    req.resource.action_mode = 'configure';
+    assert.equal(decidePermission(req).reason, 'AGENT_MODE_EXCEEDED', 'C-PRM-3 still binds an agent with operator');
   });
 
   test('a malformed request throws rather than deciding', () => {

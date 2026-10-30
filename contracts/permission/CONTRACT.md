@@ -63,8 +63,15 @@ POST {probe_url}/permission/decide
 - `resource.change` and `policy` are required for `approve_change` and
   ignored otherwise. `policy.separation_of_duties` has one defined value,
   `strict`.
+- For `approve_change` the subject is the person applying the change on the
+  strength of the signatures already collected in `resource.change.approvals`.
+  The subject's own identity is never counted as a signature: a subject who
+  holds a quorum role does not fill that role by asking (prm-013). The
+  author may neither sign nor be the subject applying the change (§2.2).
 - `grants` are **control grants**: they apply to `start` and `control:*`
-  only. `view`, `invoke_action` and `approve_change` are always in-work-center.
+  only. `invoke_action` and `approve_change` are in-work-center. `view` is
+  in-work-center in the toy, but no fixture tests cross-work-center `view`
+  and this contract does not rule on it (open question, §5.1).
 
 A request that does not match this shape is answered `400 VALIDATION_ERROR`
 in the REST error envelope (`docs/REST_Protocol.md` §1.5, §1.6), never with
@@ -73,7 +80,10 @@ a decision. A decision is only ever given for a well-formed request.
 ### 1.2 Roles and verbs
 
 The role vocabulary is closed for the purpose of this contract so fixtures
-are unambiguous. A target maps its own role names onto these.
+are unambiguous. Fixtures send these names literally (`operator`,
+`commander`, …) and the target profile has no slot for a mapping: how a
+target relates its own role names to these is its internal concern, and its
+probe does the translation (open question, §5.1).
 
 | role | authorises |
 |---|---|
@@ -85,6 +95,12 @@ are unambiguous. A target maps its own role names onto these.
 
 Roles are held **per work center**: `subject.roles` are the roles the subject
 holds in `subject.work_center`, nowhere else.
+
+**Roles authorise verbs; subject kind does not.** `subject.kind` decides only
+whether C-PRM-3 applies. An agent subject normally holds just `agent`; an
+agent given `operator` may `start` and `control:*` exactly as a user with
+that role would, and C-PRM-3 still binds its `invoke_action`. The toy
+behaves this way and `permission-suite.test.mjs` pins it.
 
 ### 1.3 Mapping onto REST-05
 
@@ -108,7 +124,7 @@ answer with any other string.
 | `GRANT_SCOPE_OWN` | false | a grant reaches the resource's work center but its scope is `own` and the subject does not own the instance |
 | `NOT_OWNER` | false | in the subject's own work center, a `control:*` verb on an instance the subject does not own, without `commander` |
 | `AGENT_MODE_EXCEEDED` | false | an agent's `invoke_action` where `resource.action_mode` ranks above `subject.mode` (`observe` < `test` < `configure`) |
-| `SELF_APPROVAL` | false | the change author appears in `approvals`, or is the subject asking to approve |
+| `SELF_APPROVAL` | false | the change author appears in `approvals`, or the author is the subject applying the change |
 | `SAME_PERSON_TWICE` | false | one person appears in two or more approvals (strict separation of duties) |
 | `QUORUM_NOT_MET` | false | the approvals are from distinct non-authors, yet some role in `policy.quorum` has no approval |
 
@@ -117,9 +133,11 @@ answer with any other string.
 They are defined so that at most one applies, in this order:
 
 1. **SELF_APPROVAL** — `change.author` is among `approvals[].by`, or equals
-   `subject.id`. The author's signature *never counts* (C-PRM-4), and a
-   request that relies on it is refused with this reason even when every
-   quorum role is otherwise signed (prm-014).
+   `subject.id` (the author applying their own change). The author's
+   signature *never counts* (C-PRM-4), and a request that relies on it is
+   refused with this reason even when every quorum role is otherwise signed
+   (prm-014). Only `approvals` are signatures; the subject's identity is
+   not one (§1.1).
 2. **SAME_PERSON_TWICE** — the same `by` appears twice. Signing two roles with
    one identity is a separation-of-duties breach, not merely a short quorum
    (prm-015).
@@ -240,9 +258,10 @@ permission model of its own.
   *workflow's runtime* reaching across work centers, whereas the probe's
   `subject` is a user or agent; the scope semantics are the same.
 - Reading a runtime's state (`view`) across work centers "needs either kind
-  of grant" (HELP §4). This contract keeps `view` in-work-center only, which
-  is stricter; a target that grants cross-centre `view` still passes every
-  fixture here, since none asks for it.
+  of grant" (HELP §4). The toy keeps `view` in-work-center only, which is
+  stricter, but this contract does not rule on it: no fixture asks for
+  cross-centre `view`, so a target that grants it conforms. Open question
+  (§5.1).
 
 **Not covered today.**
 
@@ -260,6 +279,25 @@ permission model of its own.
 - `NOT_OWNER` inside a work center: the shipped Commander flag is all-or-
   nothing per work center; it does not distinguish an operator's own runs
   from others'. The `operator`/`commander` split here is a refinement.
+
+### 5.1 Open questions for Dennis
+
+These are proposals in this contract, not settled facts. Task 15/17 carry
+them into HARDENING and HANDOFF.
+
+1. **`subject.mode`** — the agent's highest action mode travels on the
+   subject (§1.1) because nothing on the wire carries a per-agent identity
+   today. Is that the right place, and is `observe < test < configure` the
+   right ladder?
+2. **The `commander` role name** — this contract calls the per-work-center
+   "Mission System Commander" flag a role named `commander`. Keep that name,
+   or use the product's own?
+3. **`view` scope** — the shipped Commander lets a control grant also grant
+   cross-centre reads (HELP §4); the toy keeps `view` in-work-center. Which
+   should the contract pin, if either? Until answered, no fixture tests it.
+4. **Role-name mapping** — fixtures send `viewer`/`operator`/`commander`/
+   `agent` literally and the target profile has no mapping slot (§1.2).
+   Should the profile gain one, or does each target's probe translate?
 
 ## 6. Expected results against the toy
 
