@@ -47,6 +47,8 @@ counted as binary: it adds to the file count and contributes zero lines.
 Counts include tests, fixtures, generated migration snapshots and
 documentation inside each directory — they measure how much is there, not
 how much is hand-written. Where the distinction matters it is called out.
+Single-file figures below use the same rule (all lines, blank ones
+included), so they add up to the directory totals.
 
 Whole tree: 2 738 files, 615 225 lines, 72 binary files.
 
@@ -79,12 +81,12 @@ do not; their role below is quoted from the applications table in the root
 
 | Area | Size (files / lines) | Verdict |
 |---|---|---|
-| `docs/REST_Protocol.md`, `docs/JSON_SCHEMA.md` | 2 / 1 558 | Reusable as-is |
+| `docs/REST_Protocol.md`, `docs/JSON_SCHEMA.md` | 2 / 1 994 | Reusable as-is |
 | `MissionEngine` core + spec validator + conformance harness and fixtures | 237 / 57 651 (core 27 / 10 612; spec 4 / 2 436; conformance 95 / 7 613) | Reusable as-is |
 | `mission-control-db` schema, DAOs, control grants | 293 / 182 201 (src 179 / 27 815) | Reusable as-is, behind the permission contract |
 | `MissionAutopilot/packages/server` + `packages/engine` | 77 / 24 207 | Reusable as-is for protocol and state machine; findings 1, 2, 10 apply |
 | `MissionAutopilot/apps/console` | 94 / 11 274 | Example only |
-| `MissionBroker` | 33 / 4 284 | Reusable as-is for the distributed-workflow actions, **with a caveat on the auth header** (verdict adjusted — see row) |
+| `MissionBroker` | 33 / 4 284 | Reusable as-is for the distributed-workflow actions, **with caveats on authentication (header, 401 body) and the health route** (verdict adjusted — see row; finding 13) |
 | `MissionCommander` server routes | 85 / 9 947 | Reusable with hardening (finding 6) |
 | `MissionCommander` UI, `MissionPilot`, `MissionDesigner` app shell, `MissionDesigner/packages/tokens` | 197 / 23 396; 128 / 23 898; 1 041 / 195 081; 14 / 226 | Example only |
 | `MissionFormKit` schema; renderer | schema 35 / 2 972; renderer 46 / 3 307 | Reusable as-is (schema); example (renderer) |
@@ -95,16 +97,16 @@ do not; their role below is quoted from the applications table in the root
 
 ### `docs/REST_Protocol.md`, `docs/JSON_SCHEMA.md` — Reusable as-is
 
-- **Role.** `REST_Protocol.md` (687 lines): "the **public** REST surface
+- **Role.** `REST_Protocol.md` (908 lines): "the **public** REST surface
   served by a Trajectory Action Container at `/trajectory/v1/*` and consumed
-  by a Trajectory Runtime" (its Scope paragraph). `JSON_SCHEMA.md` (871
+  by a Trajectory Runtime" (its Scope paragraph). `JSON_SCHEMA.md` (1 086
   lines): "the complete JSON object schemas the Trajectory product family
   exchanges and ... the ZIP bundle layouts that carry them" (its Scope
   paragraph).
 - **Evidence.** The contracts in this folder cite `REST_Protocol.md` by
-  section (`contracts/agent-action/CONTRACT.md` alone references it eight
-  times, e.g. C-AGT-3 "REST §1.3"); every MUST in the agent-action contract
-  is anchored to a paragraph of it.
+  section (`contracts/agent-action/CONTRACT.md` alone carries seventeen
+  `REST §` citations, e.g. C-AGT-3 "REST §1.3"); every MUST in the
+  agent-action contract is anchored to a paragraph of it.
 - **Caveat, not a verdict change.** `JSON_SCHEMA.md` opens with a banner
   saying its tool attributions (Trajectory Editor, Runtime, Action
   Container) are stale after the 2026-09-09 rebrand and "the FORMAT
@@ -112,7 +114,7 @@ do not; their role below is quoted from the applications table in the root
   the producer/consumer tables. The findings in `HARDENING.md` are changes
   we think the REST document should take; until they land, the document is
   the standard and the findings are the delta.
-- The third file, `docs/DISTRIBUTED_WORKFLOW_LIBRARY.md` (346 lines, plus a
+- The third file, `docs/DISTRIBUTED_WORKFLOW_LIBRARY.md` (448 lines, plus a
   PDF copy), is a user guide for the Broker's action library, not a
   protocol; it is read with the Broker row.
 
@@ -122,8 +124,8 @@ do not; their role below is quoted from the applications table in the root
   workflows against the shared database and dispatches environment actions;
   its image also serves Mission Pilot".
 - **Paths.** `src/core/` (27 files, 10 612 lines), `src/spec/validator.ts`
-  (926 lines) with `src/spec/workflow-schema.json`, `src/conformance/`
-  (95 files, 7 613 lines; `harness.ts` 195 lines and the vendored
+  (1 017 lines) with `src/spec/workflow-schema.json`, `src/conformance/`
+  (95 files, 7 613 lines; `harness.ts` 220 lines and the vendored
   fixtures). `src/actions/client.ts` is the REST client the engine uses to
   call action servers.
 - **Evidence for "79/0/3 baseline per PROVENANCE".** Found.
@@ -161,8 +163,9 @@ do not; their role below is quoted from the applications table in the root
   Commander routes call into; the permission logic lives in the DAO layer,
   which is what makes it reusable behind the contract rather than tied to
   one UI.
-- **Size caveat.** 149 871 of the 182 201 lines are generated Drizzle
-  migration snapshots.
+- **Size caveat.** 148 657 of the 182 201 lines are generated Drizzle
+  migration snapshots (`drizzle/meta/`, 46 files, as in the table above);
+  all of `drizzle/`, SQL migrations included, is 91 files, 149 871 lines.
 
 ### `MissionAutopilot/packages/server` + `packages/engine` — Reusable as-is for protocol and state machine; findings 1, 2, 10 apply
 
@@ -182,7 +185,7 @@ do not; their role below is quoted from the applications table in the root
   `StateMachine`, `InstanceManager`, `PythonWorkerPool` and the error
   types; `state-machine/states.ts` (observable states incl. `EXECUTING`,
   `HELD`, `COMPLETED`, `ABORTED`; `OpaqueState` at :39) and
-  `state-machine/transitions.ts` (167 lines, builds the table "per
+  `state-machine/transitions.ts` (197 lines, builds the table "per
   StateMachineSpec.md §2"). The specs themselves are in
   `.MissionAutopilot/*.md` (10 files).
 - **Evidence.** This is the reference container the agent-action contract
@@ -210,7 +213,7 @@ do not; their role below is quoted from the applications table in the root
   management UI over the server's private `/management/v1/*` routes, which
   `REST_Protocol.md` explicitly excludes from the public surface. Screens.
 
-### `MissionBroker` — Reusable as-is for the distributed-workflow actions, with a caveat on the auth header (verdict adjusted)
+### `MissionBroker` — Reusable as-is for the distributed-workflow actions, with caveats on authentication (header, 401 body) and the health route (verdict adjusted; finding 13)
 
 - **Role.** No `README.md` of its own. Root README: "Action server for the
   Distributed Workflow actions: lets a running workflow create, start,
@@ -218,30 +221,51 @@ do not; their role below is quoted from the applications table in the root
   `docs/DISTRIBUTED_WORKFLOW_LIBRARY.md`; the action library bundle is in
   `designer-library/` (4 files, 3 binary).
 - **Paths.** Hono app in `src/app.ts` (11 source files, 736 lines; 9 test
-  files, 809 lines) serving `/health`, `/trajectory/v1/capabilities`,
+  files, 809 lines) serving `/health` (root only, `app.ts:54`),
+  `/trajectory/v1/capabilities`,
   `POST /trajectory/v1/actions/:oid/invoke`,
   `GET`/`DELETE /trajectory/v1/instances/:id`, `POST .../command`,
-  `GET .../events`, with `{ error: { code, message } }` envelopes
-  (`VALIDATION_ERROR`, `FORBIDDEN`, `ACTION_NOT_FOUND`,
+  `GET .../events`, with `{ error: { code, message } }` envelopes on the
+  action routes (`VALIDATION_ERROR`, `FORBIDDEN`, `ACTION_NOT_FOUND`,
   `INSTANCE_NOT_FOUND`, 409 `INVALID_STATE_TRANSITION`).
-- **Why the starting verdict holds for the actions.** The route set and the
-  error envelope match the protocol shape; the actions it offers are the
-  only implementation of distributed workflows in the tree, and
-  `MissionEngine/src/actions/client.ts` is written to call it.
-- **Why the verdict is qualified — evidence.** `src/auth.ts` `brokerAuth`
-  accepts **only** `Authorization: Bearer <token>` (and `?token=` on the
-  events path) and answers 401 with `{ error: BROKER_TOKEN_ERROR }` — a
-  string, not the `{ error: { code, message } }` envelope. The engine
-  knows this: `MissionEngine/src/actions/client.ts:240-241` deliberately
-  sends `Authorization: Bearer` to the broker origin and `X-API-Key` to
-  the actions origin. `contracts/agent-action/CONTRACT.md:58-61` (C-AGT-3,
-  REST §1.3) requires `X-API-Key` and says a request carrying only
-  `Authorization: Bearer` MUST NOT be authenticated (probe agt-003). As
-  written, the Broker would fail agt-003 and, unless the target profile
-  names `Authorization`, agt-002. This is the same shape as finding 3,
-  which `HARDENING.md` records only for the Tester; the Broker is not in
-  `HARDENING.md` today. That is an open question for the hardening list,
-  not something this report settles.
+- **Why the starting verdict holds for the actions.** The action routes
+  and their error envelopes match the protocol shape; the actions it
+  offers are the only implementation of distributed workflows in the tree,
+  and `MissionEngine/src/actions/client.ts` is written to call it.
+- **Why the verdict is qualified — evidence.** Three deviations from the
+  surface the agent-action contract probes, all deliberate in the code:
+  1. *Header.* `src/auth.ts:37-38` `brokerAuth` accepts **only**
+     `Authorization: Bearer <token>` (and `?token=` on the events path,
+     :39); it never reads `X-API-Key`, and `src/app.ts:51` lists only
+     `Authorization` and `Content-Type` in the CORS `allowHeaders`. The
+     engine knows this: `MissionEngine/src/actions/client.ts:240-241`
+     sends `Authorization: Bearer` to the broker origin and `X-API-Key` to
+     the actions origin ("each credential goes to its own origin only",
+     :235-236). `contracts/agent-action/CONTRACT.md:58-61` (C-AGT-3,
+     REST §1.3) requires `X-API-Key` and reserves `Authorization`.
+  2. *401 body.* `src/auth.ts:40` answers 401 with
+     `{ error: BROKER_TOKEN_ERROR }` — a string, not the
+     `{ error: { code, message } }` envelope — and
+     `test/auth.test.ts:36-48` pins that exact body as "the spec body".
+  3. *Health.* `/health` is mounted at the root only and answers
+     `{ ok: true }`; there is no `/trajectory/v1/health` and no
+     `$.data.status`.
+- **What the probes would do.** agt-002 and agt-003 (both MUST, both sent
+  with `auth: false`) fail on the 401 body: they assert
+  `$.error.code == "UNAUTHORIZED"` and the Broker's `error` is a string.
+  That happens whatever the target profile says. agt-003's bogus bearer
+  is correctly *refused* (`tokenMatches` compares it to the real token),
+  so the Broker satisfies the "MUST NOT be authenticated" rule itself and
+  fails only on the shape of the refusal. agt-001 fails on the health
+  shape (and on the path, if the profile's `base_url` ends in
+  `/trajectory/v1`). Every authenticated probe from agt-004 onward passes
+  only if the target profile sets `auth.header: Authorization` and
+  `auth.scheme: Bearer` (`contracts/runner/src/http.mjs:86-89`), which is
+  itself the departure from C-AGT-3: a conforming server does not need
+  the override. Recorded as `HARDENING.md` finding 13 (severity proposed;
+  Marsha to confirm). Whether the per-origin credential should stay a
+  *different key* — which finding 13 allows — or a different *header* is
+  the design question this report leaves to her.
 - **Coupling.** `package.json` depends on `mission-control-db` by relative
   path (`file:../mission-control-db`), imports its schema and
   `runtime/remote-control`, and `src/index.ts:50-66` runs
@@ -324,7 +348,7 @@ do not; their role below is quoted from the applications table in the root
 - **Paths.** `src/` 96 files, 9 006 lines; `src/features/` holds
   `connection-bar`, `invoke-panel`, `instance-panel`, `sidebar`, `upload`,
   `welcome-splash`, `branding`; `src/api/` (9 files, 907 lines) is the
-  fetch layer; `HELP.md` 33 lines.
+  fetch layer; `HELP.md` 55 lines.
 - **Evidence it is a manual tool with no pass/fail.** A search of
   `src/features/` and `src/store/` for `expect`, `assert`, `pass` or `fail`
   outside test files finds only prose comments and a `type="password"`
@@ -333,8 +357,11 @@ do not; their role below is quoted from the applications table in the root
   screen.
 - **Finding 3.** `src/api/capabilities.ts:23-24`, `commands.ts:30-31`,
   `instances.ts:23-24`, `invoke.ts:30-31` send the key as `Authorization`,
-  which the reference container does not accept — recorded in
-  `HARDENING.md` as finding 3.
+  which the protocol reserves (REST §1.3) and which the reference
+  container nonetheless accepts
+  (`MissionAutopilot/packages/server/src/middleware/auth.ts:33-37`) — the
+  Tester works against the reference *because* of that over-acceptance.
+  Recorded in `HARDENING.md` as finding 3.
 - **Superseded.** `contracts/runner` is the conformance tool: it carries
   the numbered probes, produces a pass/fail verdict per target and is what
   this folder's contracts are checked with. The Tester stays useful as a
@@ -367,8 +394,8 @@ do not; their role below is quoted from the applications table in the root
 
 - Whether the Broker's `Authorization: Bearer`-only auth is intentional
   design for a second origin (the engine's client suggests it is) or an
-  oversight to be folded into finding 3. That is a decision for the
-  hardening list, not a code fact.
+  oversight. Finding 13 in `HARDENING.md` records the facts and a
+  proposal; its severity, and the design call, are Marsha's.
 - The 79/0/3 baseline is quoted from `PROVENANCE.md`; it was not re-run
   (this folder's rule is never to run or touch
   `MissionEngine/src/conformance/`).

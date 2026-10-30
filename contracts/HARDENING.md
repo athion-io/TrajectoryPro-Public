@@ -462,6 +462,70 @@ Expected from the evidence above, to be confirmed by the run:
 
 > Task 18 updates this section with the real results.
 
+## 13. The Mission Broker authenticates with `Authorization` only and refuses outside the envelope
+
+**Severity: M (proposed; Marsha to confirm)**
+
+**what** — The Mission Broker is a `/trajectory/v1/*` action server (the
+Distributed Workflow actions). It reads the key from `Authorization:
+Bearer <token>` only — never `X-API-Key` — and answers an unauthenticated
+request with `401 { "error": "missing or wrong broker token" }`, a string
+rather than the `{ error: { code, message } }` envelope every other error
+on its routes uses. Its `/health` is at the root only and answers
+`{ ok: true }`.
+
+**where**
+
+- `MissionBroker/src/auth.ts:37-38` — `brokerAuth` reads
+  `c.req.header('authorization')` and strips a `Bearer ` prefix; no
+  `x-api-key` lookup anywhere in the file. `:39` — `?token=` on
+  `GET /trajectory/v1/instances/:id/events` only. `:40` — the 401 body
+  `{ error: BROKER_TOKEN_ERROR }` (`BROKER_TOKEN_ERROR` at `:18`).
+- `MissionBroker/test/auth.test.ts:36-48` — pins that exact 401 body for
+  all six authenticated routes as "the spec body", so it is deliberate,
+  not an accident.
+- `MissionBroker/src/app.ts:51` — CORS `allowHeaders` is
+  `['Authorization', 'Content-Type']`; a browser sending `X-API-Key`
+  would be refused at preflight even if the server read it.
+  `src/app.ts:54` — `app.get('/health', (c) => c.json({ ok: true }))`;
+  the action routes from `:56` are under `/trajectory/v1/`.
+- `MissionEngine/src/actions/client.ts:235-241` — the engine sends
+  `Authorization: Bearer` to the broker origin and `X-API-Key` to the
+  Mission Autopilot origin, "each credential goes to its own origin only".
+- `docs/REST_Protocol.md:43-46` — `X-API-Key: <secret>`;
+  `docs/REST_Protocol.md:60` — `Authorization` is reserved.
+  `agent-action/CONTRACT.md:58-62` — C-AGT-3.
+
+**risk** — A runtime written to REST §1.3 cannot talk to the Broker without
+a per-server exception for the header, and cannot tell a Broker auth
+failure from a malformed response because the 401 has no `code`. The
+reserved `Authorization` header is in use on a second server (finding 3
+records the first), which narrows the room for a future bearer/OAuth flow.
+The engine's credential split is sound — a different key per origin is the
+right isolation — but it is implemented as a different *header*, which is
+what the protocol forbids. Health checkers that expect `$.data.status`
+under `/trajectory/v1/health` (agt-001, REST-01) get a 404 or a different
+shape.
+
+**proposal** — The Broker accepts `X-API-Key` per REST §1.3 and answers
+401 in the standard envelope (`{ error: { code: "UNAUTHORIZED", message }
+}`). Keep a separate broker credential: the engine sends it as
+`X-API-Key: <broker key>` to the broker origin, which satisfies both the
+per-origin isolation in `client.ts` and the protocol. Add `X-API-Key` to
+the CORS `allowHeaders`. Keep `?token=` on the events path only until the
+SSE ticket from finding 3 exists, then drop it. Serve `/trajectory/v1/health`
+with `$.data.status`, keeping the root `/health` if anything depends on it.
+
+**contract hook** — agt-002 and agt-003 (MUST, C-AGT-3): both are sent
+with `auth: false` and assert `$.error.code == "UNAUTHORIZED"`, so both
+fail today on the body shape whatever the target profile says. agt-003's
+bogus bearer is correctly refused, so the Broker meets the "MUST NOT be
+authenticated" rule and fails only on the envelope. agt-001 (MUST, REST-01)
+fails on the health shape. agt-004 onward pass only when the target
+profile sets `auth.header: Authorization` and `auth.scheme: Bearer`
+(`runner/src/http.mjs:86-89`), which a conforming server must not need.
+See `REUSE-REPORT.md`, Mission Broker row.
+
 ---
 
 ## Open questions for Dennis
