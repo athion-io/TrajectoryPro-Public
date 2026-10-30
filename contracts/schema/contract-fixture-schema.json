@@ -51,7 +51,7 @@
     },
     "expected": {
       "type": "object",
-      "description": "Optional fixture-wide expectations evaluated after the steps, for suites that need them."
+      "description": "Reserved. Not evaluated by the runner; only each step's expect block is graded."
     },
     "teardown": {
       "type": "array",
@@ -76,10 +76,12 @@
           "enum": ["request", "wait_state", "sse_read", "capture"],
           "description": "request: one HTTP call. wait_state: poll an instance until it reaches one of the states. sse_read: read SSE frames for a bounded time. capture: pull values out of an earlier response."
         },
-        "id": { "type": "string", "description": "Optional label used in reports." },
+        "id": { "type": "string", "description": "Optional label; a capture step refers to an earlier request step by its id." },
+        "from": { "type": "string", "description": "For capture steps: the id of the request step whose response to read." },
         "method": { "type": "string", "description": "HTTP method, for request steps." },
         "path": { "type": "string", "description": "Path relative to the target's base_url (or probe_url when probe is true)." },
         "probe": { "type": "boolean", "description": "Send this request to probe_url instead of base_url." },
+        "auth": { "type": "boolean", "description": "false omits the target's auth header on this request (for unauthenticated-call fixtures). Default true." },
         "headers": { "type": "object", "additionalProperties": { "type": "string" } },
         "body": { "description": "JSON request body." },
         "capture": {
