@@ -1,0 +1,48 @@
+{
+  "test_id": "aud-010",
+  "name": "GET /audit/export?scope_id= returns an NDJSON trail that passes the offline verifier with no issues",
+  "category": "audit-trail",
+  "level": "MUST",
+  "source": "C-AUD-3",
+  "tags": [
+    "audit",
+    "probe",
+    "export"
+  ],
+  "requires": [
+    "audit_probe"
+  ],
+  "steps": [
+    {
+      "id": "export",
+      "kind": "request",
+      "method": "GET",
+      "path": "/audit/export?scope_id={{roles.audit_scope}}",
+      "probe": true,
+      "expect": {
+        "status": 200,
+        "headers": {
+          "content-type": {
+            "contains_token": "application/x-ndjson"
+          }
+        }
+      }
+    },
+    {
+      "kind": "audit_verify",
+      "from": "export",
+      "expect": {
+        "json": [
+          {
+            "path": "$.issues",
+            "type": "array"
+          },
+          {
+            "path": "$.issues",
+            "equals": []
+          }
+        ]
+      }
+    }
+  ]
+}

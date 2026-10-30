@@ -93,7 +93,7 @@ export const CAPABILITY_ROLES = Object.freeze({
   cors: ['cors_origin'],
   outbound_only: [],
   permission_probe: [],
-  audit_probe: [],
+  audit_probe: ['audit_scope'],
   connector_probe: [],
 });
 
@@ -293,6 +293,10 @@ export async function loadTarget(filePath) {
   }
   for (const role of ALWAYS_ROLES) {
     if (typeof roles[role] !== 'string') problem(`roles.${role} is required for every target`);
+  }
+  const probeCaps = capabilities.filter((cap) => typeof cap === 'string' && cap.endsWith('_probe') && cap in CAPABILITY_ROLES);
+  if (probeCaps.length > 0 && typeof obj.probe_url !== 'string') {
+    problem(`probe_url is missing but capability ${probeCaps.map((c) => `"${c}"`).join(', ')} needs it`);
   }
 
   if ('attestations' in obj) {

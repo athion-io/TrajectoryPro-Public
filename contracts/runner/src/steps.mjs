@@ -18,9 +18,13 @@
 // (`wait_s`, `sse_s`; both 15 s when unset) and a step's `timeout_s` overrides
 // them; every wait goes through `ctx.clock`.
 
+import { readFileSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
+
 import { buildRequest, redactUrl, template } from './http.mjs';
 import { check, jsonPath } from './assert.mjs';
 import { readEvents } from './sse.mjs';
+import { parseTrail, verifyChain } from './audit.mjs';
 
 const DEFAULT_TIMEOUT_S = 15;
 const BACKOFF_MS = [250, 500, 1000, 2000];
@@ -33,7 +37,8 @@ const BACKOFF_MS = [250, 500, 1000, 2000];
  * @property {typeof fetch} fetch
  * @property {import('./sse.mjs').Clock} clock  every wait goes through this; `sleep` honours an AbortSignal
  * @property {(line: string) => void} log
- * @property {Map<string, StepResponse>} responses  responses by step id, for `capture` steps
+ * @property {Map<string, StepResponse>} responses  responses by step id, for `capture` and `audit_verify` steps
+ * @property {string} [contractsRoot]  directory a request step's `trail` path resolves against
  */
 
 /**
@@ -63,8 +68,30 @@ function applyCapture(capture, response, vars) {
   }
 }
 
+/**
+ * A request step with `trail: "<path>"` posts a committed NDJSON trail as
+ * `{events: [...]}`. The path is relative to the contracts root (a fixture
+ * path such as "audit-trail/fixtures/trails/good.jsonl"); the file must be
+ * inside that root. A missing or unparseable trail throws.
+ */
+function withTrail(step, ctx) {
+  if (step.trail === undefined) return step;
+  if (typeof step.trail !== 'string' || step.trail === '') throw new Error('request step: trail must be a non-empty path');
+  const root = resolve(ctx.contractsRoot ?? '.');
+  const file = resolve(root, step.trail);
+  if (!file.startsWith(root + sep)) throw new Error(`request step: trail "${step.trail}" is outside the contracts root`);
+  let text;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch (err) {
+    throw new Error(`request step: trail "${step.trail}" could not be read: ${err?.message ?? err}`);
+  }
+  return { ...step, body: { ...(step.body ?? {}), events: parseTrail(text) } };
+}
+
 /** @type {(step: object, ctx: StepContext) => Promise<StepResult>} */
-async function request(step, ctx) {
+async function request(rawStep, ctx) {
+  const step = withTrail(rawStep, ctx);
   const { url, init, path } = buildRequest(ctx.target, step, ctx.vars, ctx.apiKey);
   const method = init.method;
   let res;
@@ -219,8 +246,28 @@ async function sseRead(step, ctx) {
   return finish(step, ctx, response, 'GET', path);
 }
 
+/**
+ * Runs the offline verifier (audit.mjs) over the NDJSON body of an earlier
+ * request step named by `from`, as `--audit-file` would over a saved file.
+ * The result is a synthetic response `{issues, events}` so `expect.json`
+ * can pin `$.issues`. An empty or unparseable export, or an event that
+ * cannot be canonicalized, throws and so fails the fixture (the audit-trail
+ * contract's "unreadable" outcome). No request is made.
+ * @type {(step: object, ctx: StepContext) => Promise<StepResult>}
+ */
+async function auditVerify(step, ctx) {
+  const exported = ctx.responses.get(step.from);
+  if (!exported) throw new Error(`audit_verify step refers to unknown step id "${step.from}"`);
+  const events = parseTrail(exported.text);
+  if (events.length === 0) throw new Error(`audit_verify: step "${step.from}" exported no events`);
+  const issues = verifyChain(events);
+  const json = { issues, events: events.length };
+  const response = { status: 200, headers: new Headers(), json, text: JSON.stringify(json) };
+  return finish(step, ctx, response, 'VERIFY', `offline:${step.from}`);
+}
+
 /** @type {Record<string, (step: object, ctx: StepContext) => Promise<StepResult>>} */
-export const STEP_KINDS = { request, capture, wait_state: waitState, sse_read: sseRead };
+export const STEP_KINDS = { request, capture, wait_state: waitState, sse_read: sseRead, audit_verify: auditVerify };
 
 /**
  * Runs one step.

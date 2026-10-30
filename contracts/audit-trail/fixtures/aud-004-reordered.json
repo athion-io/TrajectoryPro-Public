@@ -1,0 +1,60 @@
+{
+  "test_id": "aud-004",
+  "name": "POST /audit/verify reports broken_link from the first out-of-order event onwards",
+  "category": "audit-trail",
+  "level": "MUST",
+  "source": "C-AUD-4",
+  "tags": [
+    "audit",
+    "probe"
+  ],
+  "requires": [
+    "audit_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/audit/verify",
+      "probe": true,
+      "trail": "audit-trail/fixtures/trails/reordered.jsonl",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.issues",
+            "type": "array"
+          },
+          {
+            "path": "$.data.issues[0].index",
+            "equals": 1
+          },
+          {
+            "path": "$.data.issues[0].issue",
+            "equals": "broken_link"
+          },
+          {
+            "path": "$.data.issues[1].index",
+            "equals": 2
+          },
+          {
+            "path": "$.data.issues[1].issue",
+            "equals": "broken_link"
+          },
+          {
+            "path": "$.data.issues[2].index",
+            "equals": 3
+          },
+          {
+            "path": "$.data.issues[2].issue",
+            "equals": "broken_link"
+          },
+          {
+            "path": "$.data.issues[3]",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -26,13 +26,19 @@
 //   no-auth                X-API-Key is not checked
 //   non-idempotent-invoke  re-invoking the same step creates a new instance
 //   no-ring-replay         Last-Event-ID is ignored; no buffered replay
-//   break-chain            audit trail hash chain is broken (probe surface, later task)
+//   break-chain            audit trail exported by /conformance/v1/audit/export has a
+//                          broken prev_hash link at index 2 (audit-trail aud-010)
 //   lying-readback         permission read-back differs from what was granted (later task)
 //   permit-self-approval   approver may equal requester (later task)
-// Later tasks add the /conformance/v1/* probe surface and may add defects;
-// add routes to ROUTES and consult `defects.has(...)` at the point of failure.
+// The /conformance/v1/* probe surface (PROBE_ROUTES) carries the audit probe;
+// later tasks add permission and connector probes there. Add routes to ROUTES
+// or PROBE_ROUTES and consult `defects.has(...)` at the point of failure.
+
+import { canonicalize, sha256Digest } from '../src/jcs.mjs';
+import { eventHash, verifyChain } from '../src/audit.mjs';
 
 const ROOT = '/trajectory/v1';
+const PROBE_ROOT = '/conformance/v1';
 const RING_SIZE = 256;
 
 export const DEFECTS = Object.freeze([
@@ -74,6 +80,7 @@ export const TOY_ROLES = Object.freeze({
   offline_action: 'act-offline',
   unknown_action: 'act-nope',
   guarded_action: 'act-guarded',
+  audit_scope: 'wf-toy-1',
 });
 
 const ACTIONS = {
@@ -452,6 +459,80 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
     ['GET', /^\/instances\/([^/]+)\/events$/, handleEvents],
   ];
 
+  // ---------- /conformance/v1 probe surface (audit-trail CONTRACT) ----------
+
+  /**
+   * The toy's audit trail for a scope: five chained events in C-AUD-1 shape,
+   * hashed with the runner's own recipe (C-AUD-3/4). Deterministic per scope.
+   * break-chain: the third event claims a wrong predecessor, so an offline
+   * verifier reports broken_link at index 2.
+   */
+  function auditTrail(scopeId) {
+    const t0 = Date.UTC(2026, 9, 29, 12, 0, 0, 0);
+    const mk = (i, actor, action, resource_type, resource_id, rev, reason, payload) => ({
+      id: `${scopeId}-ev-${i + 1}`,
+      ts: new Date(t0 + i * 1000).toISOString(),
+      actor,
+      action,
+      scope_kind: 'workflow_instance',
+      scope_id: scopeId,
+      resource_type,
+      resource_id,
+      rev,
+      reason,
+      payload,
+      subject_hash: sha256Digest(canonicalize(payload)),
+      recipe: 'jcs-sha256',
+    });
+    const user = { kind: 'user', id: 'u-operator-1' };
+    const runtime = { kind: 'runtime', id: 'toy' };
+    const items = [
+      mk(0, user, 'run.started', 'workflow_instance', scopeId, 1, 'operator start', { workflow_oid: 'wf-pack-7', environment_oid: TOY_ROLES.environment_oid }),
+      mk(1, runtime, 'step.invoked', 'step_instance', 'si-1', 1, 'scheduler', { action_oid: TOY_ROLES.observable_action, instance_id: 'inst-1' }),
+      mk(2, runtime, 'step.state', 'step_instance', 'si-1', 2, 'container event', { instance_id: 'inst-1', state: 'EXECUTING', previous_state: 'STARTING' }),
+      mk(3, runtime, 'step.done', 'step_instance', 'si-1', 3, 'container event', { instance_id: 'inst-1', state: 'COMPLETED' }),
+      mk(4, user, 'run.completed', 'workflow_instance', scopeId, 2, 'all steps done', { steps: 1, outcome: 'COMPLETED' }),
+    ];
+    const events = [];
+    let prev = '';
+    items.forEach((item, i) => {
+      const event = { ...item, prev_hash: prev, signature: '' };
+      if (i === 2 && defects.has('break-chain')) event.prev_hash = sha256Digest('a link the toy never wrote');
+      event.hash = eventHash(event);
+      prev = event.hash;
+      events.push(event);
+    });
+    return events;
+  }
+
+  /** POST /audit/verify {events:[...]} -> {data:{issues:[{index,id,issue}]}}. */
+  function handleAuditVerify({ body }) {
+    if (!body || typeof body !== 'object' || !Array.isArray(body.events)) {
+      return fail(400, 'VALIDATION_ERROR', 'body must be {events: [...]}');
+    }
+    let issues;
+    try {
+      issues = verifyChain(body.events);
+    } catch (err) {
+      // An event that cannot be canonicalized is unverifiable, not merely tampered.
+      return fail(400, 'VALIDATION_ERROR', `events cannot be verified: ${err.message}`);
+    }
+    return ok(200, { issues, events: body.events.length });
+  }
+
+  /** GET /audit/export?scope_id=<id> -> application/x-ndjson, one event per line, no envelope. */
+  function handleAuditExport({ url }) {
+    const scopeId = url.searchParams.get('scope_id');
+    if (!scopeId) return fail(400, 'VALIDATION_ERROR', 'scope_id is required');
+    const lines = auditTrail(scopeId).map((e) => JSON.stringify(e)).join('\n') + '\n';
+    return new Response(lines, { status: 200, headers: { 'content-type': 'application/x-ndjson', ...CORS_HEADERS } });
+  }
+
+  const PROBE_ROUTES = [
+    ['POST', /^\/audit\/verify$/, handleAuditVerify],
+    ['GET', /^\/audit\/export$/, handleAuditExport],
+  ];
+
   function authorized(headers) {
     // no-auth: accept every request whether or not the key matches.
     if (defects.has('no-auth')) return true;
@@ -479,13 +560,20 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
     const u = new URL(String(url));
     const method = (init.method ?? 'GET').toUpperCase();
     const headers = new Headers(init.headers);
-    if (!u.pathname.startsWith(ROOT)) return fail(404, 'NOT_FOUND', 'unknown path');
-    const path = u.pathname.slice(ROOT.length) || '/';
+    let routes = ROUTES;
+    let root = ROOT;
+    if (u.pathname.startsWith(PROBE_ROOT)) {
+      routes = PROBE_ROUTES;
+      root = PROBE_ROOT;
+    } else if (!u.pathname.startsWith(ROOT)) {
+      return fail(404, 'NOT_FOUND', 'unknown path');
+    }
+    const path = u.pathname.slice(root.length) || '/';
 
     // CORS preflight answers for any known path; it is not in ROUTES so it cannot mask a 404.
-    const pathKnown = ROUTES.some(([, re]) => re.test(path));
+    const pathKnown = routes.some(([, re]) => re.test(path));
     if (method === 'OPTIONS') return pathKnown ? handleOptions() : fail(404, 'NOT_FOUND', 'unknown path');
-    const route = ROUTES.find(([m, re]) => m === method && re.test(path));
+    const route = routes.find(([m, re]) => m === method && re.test(path));
     if (!route) {
       return pathKnown ? fail(405, 'METHOD_NOT_ALLOWED', 'method not allowed') : fail(404, 'NOT_FOUND', 'unknown path');
     }

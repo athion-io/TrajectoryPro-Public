@@ -77,7 +77,8 @@
         "offline_action": { "type": "string", "description": "An action whose backend is unreachable." },
         "unknown_action": { "type": "string", "description": "An action id that does not exist." },
         "guarded_action": { "type": "string", "description": "An action protected by the change-guard extension." },
-        "cors_origin": { "type": "string", "description": "An Origin the target allows." }
+        "cors_origin": { "type": "string", "description": "An Origin the target allows." },
+        "audit_scope": { "type": "string", "description": "A scope_id whose audit trail GET probe_url/audit/export?scope_id= returns with at least one event. Required with audit_probe." }
       }
     },
     "timeouts": {

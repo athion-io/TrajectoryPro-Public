@@ -1,0 +1,44 @@
+{
+  "test_id": "aud-003",
+  "name": "POST /audit/verify reports broken_link at the event whose prev_hash does not match its predecessor",
+  "category": "audit-trail",
+  "level": "MUST",
+  "source": "C-AUD-4",
+  "tags": [
+    "audit",
+    "probe"
+  ],
+  "requires": [
+    "audit_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/audit/verify",
+      "probe": true,
+      "trail": "audit-trail/fixtures/trails/link-broken.jsonl",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.issues",
+            "type": "array"
+          },
+          {
+            "path": "$.data.issues[0].index",
+            "equals": 4
+          },
+          {
+            "path": "$.data.issues[0].issue",
+            "equals": "broken_link"
+          },
+          {
+            "path": "$.data.issues[1]",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

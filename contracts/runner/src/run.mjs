@@ -17,6 +17,7 @@
 
 import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 import { runStep } from './steps.mjs';
 import { systemClock } from './sse.mjs';
@@ -24,6 +25,7 @@ import { systemClock } from './sse.mjs';
 export { systemClock };
 
 const RUNNER_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const DEFAULT_CONTRACTS_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 /**
  * @typedef {import('./sse.mjs').Clock} Clock
@@ -181,12 +183,14 @@ async function runFixture(fixture, ctx) {
  * @param {Clock} [options.clock]
  * @param {(line: string) => void} [options.log]
  * @param {string} [options.fixturesCommit]
- * @param {string} [options.auditFile]  audit trail path; carried on the context for audit-trail step kinds (later task)
+ * @param {string} [options.auditFile]  audit trail path; carried on the context for audit-trail step kinds
+ * @param {string} [options.contractsRoot]  directory that `trail:` paths on request steps resolve against
+ *   (default: the contracts/ directory this runner lives in)
  * @param {Partial<Record<'user_token' | 'ungranted_user_token', string>>} [options.userTokens]
  *   forwarded-identity user tokens; each becomes `{{<name>}}` and satisfies a `requires` entry of that name
  * @returns {Promise<Report>}
  */
-export async function runSuite({ fixtures, target, apiKey, fetch = globalThis.fetch, clock = systemClock, log = () => {}, fixturesCommit, auditFile, userTokens = {} }) {
+export async function runSuite({ fixtures, target, apiKey, fetch = globalThis.fetch, clock = systemClock, log = () => {}, fixturesCommit, auditFile, contractsRoot = DEFAULT_CONTRACTS_ROOT, userTokens = {} }) {
   const tokenVars = {};
   for (const name of USER_TOKEN_NAMES) {
     if (typeof userTokens[name] === 'string' && userTokens[name] !== '') tokenVars[name] = userTokens[name];
@@ -213,6 +217,7 @@ export async function runSuite({ fixtures, target, apiKey, fetch = globalThis.fe
       clock,
       log,
       auditFile,
+      contractsRoot,
       responses: new Map(),
     };
     const result = await runFixture(fixture, ctx);

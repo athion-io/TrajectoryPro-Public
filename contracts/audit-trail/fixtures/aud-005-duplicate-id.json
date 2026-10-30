@@ -1,0 +1,44 @@
+{
+  "test_id": "aud-005",
+  "name": "POST /audit/verify reports duplicate_id at the second event that reuses an id",
+  "category": "audit-trail",
+  "level": "MUST",
+  "source": "C-AUD-5",
+  "tags": [
+    "audit",
+    "probe"
+  ],
+  "requires": [
+    "audit_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/audit/verify",
+      "probe": true,
+      "trail": "audit-trail/fixtures/trails/duplicate-id.jsonl",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.issues",
+            "type": "array"
+          },
+          {
+            "path": "$.data.issues[0].index",
+            "equals": 4
+          },
+          {
+            "path": "$.data.issues[0].issue",
+            "equals": "duplicate_id"
+          },
+          {
+            "path": "$.data.issues[1]",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

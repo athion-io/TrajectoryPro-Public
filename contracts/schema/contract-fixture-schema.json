@@ -77,11 +77,12 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["request", "wait_state", "sse_read", "capture"],
-          "description": "request: one HTTP call. wait_state: poll an instance until it reaches one of the states. sse_read: read SSE frames for a bounded time. capture: pull values out of an earlier response."
+          "enum": ["request", "wait_state", "sse_read", "capture", "audit_verify"],
+          "description": "request: one HTTP call. wait_state: poll an instance until it reaches one of the states. sse_read: read SSE frames for a bounded time. capture: pull values out of an earlier response. audit_verify: run the offline audit verifier (C-AUD-3..6) over the NDJSON body of the request step named by from; the step's response body is {issues, events} so expect can read $.issues."
         },
         "id": { "type": "string", "description": "Optional label; a capture step refers to an earlier request step by its id." },
-        "from": { "type": "string", "description": "For capture steps: the id of the request step whose response to read." },
+        "from": { "type": "string", "description": "For capture and audit_verify steps: the id of the request step whose response to read." },
+        "trail": { "type": "string", "description": "request: path of an NDJSON audit trail relative to the contracts root (for example audit-trail/fixtures/trails/good.jsonl); its events are sent as body.events." },
         "method": { "type": "string", "description": "HTTP method, for request steps." },
         "path": { "type": "string", "description": "Path relative to the target's base_url (or probe_url when probe is true)." },
         "probe": { "type": "boolean", "description": "Send this request to probe_url instead of base_url." },

@@ -17,6 +17,8 @@
 // `signature` removed; every other field, known or not, is hashed. The genesis
 // event's `prev_hash` is "". Digests may be `sha256:<hex>` or bare hex.
 
+import { readFileSync } from 'node:fs';
+
 import { canonicalize, sha256Digest, sameDigest } from './jcs.mjs';
 
 /**
@@ -71,6 +73,51 @@ export function verifyChain(events) {
     if (holdsSecret(event.payload)) report('secret_in_payload');
   }
   return issues;
+}
+
+/**
+ * Parses an NDJSON trail (one event per line; blank lines ignored). Throws
+ * on a line that is not JSON or not an object, naming the 1-based line.
+ * @param {string} text
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function parseTrail(text) {
+  if (typeof text !== 'string') throw new TypeError('parseTrail expects a string');
+  const events = [];
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line === '') continue;
+    let value;
+    try {
+      value = JSON.parse(line);
+    } catch (e) {
+      throw new SyntaxError(`line ${i + 1} is not JSON: ${e.message}`);
+    }
+    if (!isPlainObject(value)) throw new TypeError(`line ${i + 1} is not an event object`);
+    events.push(value);
+  }
+  return events;
+}
+
+/**
+ * Offline verification of a local NDJSON trail, with the exit-code semantics
+ * of `trajectory-contracts --audit-file`: 0 clean, 1 issues found, 2 the
+ * file could not be read, parsed, or canonicalized. Never throws.
+ * @param {string} file
+ * @param {{ readFile?: (file: string) => string }} [deps]
+ * @returns {{ code: 0 | 1 | 2, issues: ChainIssue[], events: number, error: string | null }}
+ */
+export function verifyTrailFile(file, deps = {}) {
+  const readFile = deps.readFile ?? ((f) => readFileSync(f, 'utf8'));
+  try {
+    const events = parseTrail(readFile(file));
+    if (events.length === 0) throw new Error('trail is empty');
+    const issues = verifyChain(events);
+    return { code: issues.length === 0 ? 0 : 1, issues, events: events.length, error: null };
+  } catch (e) {
+    return { code: 2, issues: [], events: 0, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** True when any key at any depth matches SECRET_KEY_RE and holds a non-empty string. */

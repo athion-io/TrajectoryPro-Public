@@ -99,8 +99,8 @@ describe('templated expect', () => {
 });
 
 describe('step kinds', () => {
-  test('wait_state and sse_read are registered', () => {
-    assert.deepEqual(Object.keys(STEP_KINDS).sort(), ['capture', 'request', 'sse_read', 'wait_state']);
+  test('wait_state, sse_read and audit_verify are registered', () => {
+    assert.deepEqual(Object.keys(STEP_KINDS).sort(), ['audit_verify', 'capture', 'request', 'sse_read', 'wait_state']);
   });
 });
 
