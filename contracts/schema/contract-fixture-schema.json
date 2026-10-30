@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://athion.io/schemas/trajectory-contracts/contract-fixture.json",
+  "title": "Trajectory Contract Fixture",
+  "description": "One contract fixture: an HTTP scenario the runner plays against an implementation. Copyright 2026 Athion, Inc. Licensed under the Apache License, Version 2.0. This schema documents the shape for readers in any language; runner/src/load.mjs (lintFixture) is the executable check and must list the same required keys.",
+  "type": "object",
+  "required": ["test_id", "name", "category", "level", "tags", "requires", "steps"],
+  "properties": {
+    "test_id": {
+      "type": "string",
+      "pattern": "^(agt|rly|prm|aud|cfg)-[a-z0-9-]+$",
+      "description": "Unique id and the file name prefix: the file is <test_id>-<slug>.json. Prefixes: agt- (agent action), rly- (outbound-only relay), prm- (permission), aud- (audit trail), cfg- (config connector)."
+    },
+    "name": {
+      "type": "string",
+      "description": "Plain-English statement of what the fixture checks."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["agent-action", "permission", "audit-trail", "config-connector"],
+      "description": "The contract this fixture belongs to; also the directory it lives in."
+    },
+    "level": {
+      "type": "string",
+      "pattern": "^(MUST|SHOULD|IMPL-DEFINED|EXTENSION:[a-z0-9-]+)$",
+      "description": "MUST: a failure fails the run. SHOULD: a failure is reported as a note. IMPL-DEFINED: allowed variance, reported as a note. EXTENSION:<name>: skipped unless the target declares the extension."
+    },
+    "source": {
+      "type": "string",
+      "description": "Where the requirement comes from, for example \"REST-05\" (a docs/REST_Protocol.md section) or \"C-AUD-3\" (a contract clause). Required when level is MUST or SHOULD."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form tags for filtering, for example \"invoke\", \"sse\", \"live\"."
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Capabilities, roles and extensions the target must declare for this fixture to run; otherwise it is skipped. Every {{roles.X}} placeholder in the fixture must name X here, or a capability listed here must imply it (see CAPABILITY_ROLES in runner/src/load.mjs). environment_oid is always available."
+    },
+    "setup": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "description": "Steps run before the checked steps. Their expectations are not graded unless they fail outright."
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "description": "The checked steps. Each step's expect block is graded at the fixture's level."
+    },
+    "expected": {
+      "type": "object",
+      "description": "Optional fixture-wide expectations evaluated after the steps, for suites that need them."
+    },
+    "teardown": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "description": "Steps run after the checked steps, even on failure. Usually marked tolerate: true."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "level": { "enum": ["MUST", "SHOULD"] } } },
+      "then": { "required": ["source"] }
+    }
+  ],
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": ["kind"],
+      "description": "One step. Placeholders: {{roles.X}} (from the target's roles map), {{uniq}} (a per-run unique token), {{name}} (a value captured by an earlier step).",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["request", "wait_state", "sse_read", "capture"],
+          "description": "request: one HTTP call. wait_state: poll an instance until it reaches one of the states. sse_read: read SSE frames for a bounded time. capture: pull values out of an earlier response."
+        },
+        "id": { "type": "string", "description": "Optional label used in reports." },
+        "method": { "type": "string", "description": "HTTP method, for request steps." },
+        "path": { "type": "string", "description": "Path relative to the target's base_url (or probe_url when probe is true)." },
+        "probe": { "type": "boolean", "description": "Send this request to probe_url instead of base_url." },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "body": { "description": "JSON request body." },
+        "capture": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "name -> JSONPath into the response body; the value becomes {{name}} for later steps."
+        },
+        "expect": { "$ref": "#/$defs/expect" },
+        "tolerate": { "type": "boolean", "description": "Do not fail the fixture if this step errors (used in teardown)." },
+        "instance": { "type": "string", "description": "Instance id for wait_state and sse_read." },
+        "states": { "type": "array", "items": { "type": "string" }, "description": "States that satisfy a wait_state step." },
+        "timeout_s": { "type": "number", "description": "Per-step override of the target's wait_s / sse_s." }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "description": "Expectations on a response. See runner/src/assert.mjs.",
+      "properties": {
+        "status": {
+          "description": "An integer, or {one_of: [..], note_if: {one_of: [..] | range: [lo, hi]}} where note_if statuses give a note instead of a failure.",
+          "oneOf": [
+            { "type": "integer" },
+            {
+              "type": "object",
+              "properties": {
+                "one_of": { "type": "array", "items": { "type": "integer" } },
+                "note_if": {
+                  "type": "object",
+                  "properties": {
+                    "one_of": { "type": "array", "items": { "type": "integer" } },
+                    "range": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "json": {
+          "type": "array",
+          "description": "Checks on the JSON body. path is a small JSONPath subset: $, .key, [n], [*].",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "present": { "type": "boolean" },
+              "absent": { "type": "boolean" },
+              "equals": {},
+              "type": { "type": "string" },
+              "in": { "type": "array" },
+              "matches": { "type": "string", "description": "A regular expression." },
+              "length_max": { "type": "integer" }
+            }
+          }
+        },
+        "headers": {
+          "type": "object",
+          "description": "Checks on response headers, keyed by header name.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "present": { "type": "boolean" },
+              "equals": { "type": "string" },
+              "contains_token": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

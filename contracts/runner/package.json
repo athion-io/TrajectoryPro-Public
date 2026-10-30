@@ -1,0 +1,17 @@
+{
+  "name": "trajectory-contracts",
+  "version": "0.1.0",
+  "description": "Runs the Trajectory Pro contract fixtures against an implementation over HTTP. No dependencies.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "trajectory-contracts": "bin/trajectory-contracts.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

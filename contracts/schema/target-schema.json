@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://athion.io/schemas/trajectory-contracts/target.json",
+  "title": "Trajectory Contract Target Profile",
+  "description": "Describes one implementation the runner can test: where it is, how to authenticate, what it supports, and which real ids play each role the fixtures name. Copyright 2026 Athion, Inc. Licensed under the Apache License, Version 2.0. runner/src/load.mjs (loadTarget) is the executable check and must list the same required keys and capabilities. Never put a secret in a target file: the API key comes from the CONTRACTS_API_KEY environment variable.",
+  "type": "object",
+  "required": ["name", "base_url", "auth", "capabilities", "roles"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Short name used in reports, for example \"toy\" or \"autopilot-reference\"."
+    },
+    "base_url": {
+      "type": "string",
+      "description": "Base of the REST surface, including the version prefix, for example http://127.0.0.1:8090/trajectory/v1."
+    },
+    "probe_url": {
+      "type": "string",
+      "description": "Base of the optional probe surface (/conformance/v1). Needed for permission_probe, audit_probe and connector_probe."
+    },
+    "auth": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "required"],
+          "description": "none: the target accepts unauthenticated requests. required: the runner sends the key from CONTRACTS_API_KEY and fixtures check that requests without it are rejected."
+        },
+        "header": {
+          "type": "string",
+          "default": "X-API-Key",
+          "description": "Header that carries the key."
+        },
+        "scheme": {
+          "type": "string",
+          "default": "",
+          "description": "Prefix placed before the key in the header value, for example \"Bearer\". Empty for X-API-Key."
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "What the target supports. A fixture whose requires lists a capability not declared here is skipped. Some capabilities imply roles that must be present in roles (sse needs observable_action).",
+      "items": {
+        "type": "string",
+        "enum": [
+          "observable_action",
+          "opaque_action",
+          "commands",
+          "sse",
+          "list",
+          "delete",
+          "cors",
+          "outbound_only",
+          "permission_probe",
+          "audit_probe",
+          "connector_probe"
+        ]
+      }
+    },
+    "extensions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Named extensions the target implements, for example \"change-guard\" or \"forwarded-identity\". EXTENSION:<name> fixtures run only when <name> is listed here."
+    },
+    "roles": {
+      "type": "object",
+      "description": "Role name -> real id in this implementation. environment_oid is always required. Fixtures refer to roles as {{roles.<name>}} so they never contain implementation-specific ids.",
+      "required": ["environment_oid"],
+      "additionalProperties": { "type": "string" },
+      "properties": {
+        "environment_oid": { "type": "string", "description": "An environment the actions below belong to." },
+        "observable_action": { "type": "string", "description": "An action that reports state changes and accepts commands." },
+        "opaque_action": { "type": "string", "description": "An action that completes without intermediate states." },
+        "fast_action": { "type": "string", "description": "An action that completes almost at once." },
+        "offline_action": { "type": "string", "description": "An action whose backend is unreachable." },
+        "unknown_action": { "type": "string", "description": "An action id that does not exist." },
+        "guarded_action": { "type": "string", "description": "An action protected by the change-guard extension." },
+        "cors_origin": { "type": "string", "description": "An Origin the target allows." }
+      }
+    },
+    "timeouts": {
+      "type": "object",
+      "properties": {
+        "wait_s": { "type": "number", "default": 15, "description": "Upper bound for wait_state polling." },
+        "sse_s": { "type": "number", "default": 10, "description": "Upper bound for one sse_read step." }
+      }
+    },
+    "known_failures": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "test_id -> reason. A listed fixture still runs; a failure is reported as expected and does not change the exit code."
+    },
+    "live_vendor": {
+      "type": "boolean",
+      "default": false,
+      "description": "Run fixtures tagged live (real vendor files and routes). Off unless the vendor environment is available."
+    }
+  }
+}
