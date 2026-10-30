@@ -147,6 +147,17 @@ describe('wait_state', () => {
     const fetch = stubFetch(() => { throw new Error('ECONNREFUSED'); });
     await assert.rejects(runStep({ kind: 'wait_state', instance: 'inst-42', states: ['COMPLETED'] }, ctx({ fetch })), /GET \/instances\/inst-42 failed: ECONNREFUSED/);
   });
+
+  test('the timeout reason, evidence and errors keep the path redacted', async () => {
+    const fetch = stubFetch(() => jsonResponse(200, instanceBody('EXECUTING')));
+    const result = await runStep({ kind: 'wait_state', instance: 'inst-42?token=hunter2', states: ['COMPLETED'], timeout_s: 0.2 }, ctx({ fetch }));
+    assert.equal(result.check.outcome, 'fail');
+    assert.match(result.check.reason, /wait_state: \/instances\/inst-42\?token=\*\*\* did not reach COMPLETED/);
+    assert.doesNotMatch(result.check.reason, /hunter2/);
+    assert.equal(result.evidence.path, '/instances/inst-42?token=***');
+    const failing = stubFetch(() => { throw new Error('ECONNRESET'); });
+    await assert.rejects(runStep({ kind: 'wait_state', instance: 'inst-42?token=hunter2', states: ['COMPLETED'] }, ctx({ fetch: failing })), (err) => /ECONNRESET/.test(err.message) && !/hunter2/.test(err.message));
+  });
 });
 
 describe('sse_read', () => {
@@ -202,7 +213,7 @@ describe('sse_read', () => {
     assert.equal(fetch.calls[0].signal.aborted, true);
   });
 
-  test('uses the target sse_s as the bound, then 10 s when the target sets none', async () => {
+  test('uses the target sse_s as the bound, then 15 s when the target sets none', async () => {
     const silent = () => new Response(new ReadableStream({ start() {} }), { status: 200, headers: { 'content-type': 'text/event-stream' } });
     const a = fakeClock();
     const pa = runStep({ kind: 'sse_read', instance: 'inst-42', max: 1 }, ctx({ fetch: stubFetch(silent), clock: a, target: target({ timeouts: { sse_s: 3 } }) }));
@@ -214,9 +225,9 @@ describe('sse_read', () => {
     const b = fakeClock();
     const pb = runStep({ kind: 'sse_read', instance: 'inst-42', max: 1 }, ctx({ fetch: stubFetch(silent), clock: b, target: target({ timeouts: undefined }) }));
     await b.tick(0);
-    await b.tick(10_000);
+    await b.tick(15_000);
     assert.equal((await pb).response.json.ended, 'timeout');
-    assert.deepEqual(b.sleeps, [10_000]);
+    assert.deepEqual(b.sleeps, [15_000]);
   });
 
   test('a non-200 response is graded like a request and records error.code', async () => {

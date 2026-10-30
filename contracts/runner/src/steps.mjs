@@ -15,15 +15,14 @@
 // Step kinds. Each kind takes a step and the fixture context and returns the
 // response it produced (if any), redacted evidence, and the expectation result.
 // Bounded waits (`wait_state`, `sse_read`) default to the target's `timeouts`
-// (`wait_s` 15, `sse_s` 10) and a step's `timeout_s` overrides them; every wait
-// goes through `ctx.clock`.
+// (`wait_s`, `sse_s`; both 15 s when unset) and a step's `timeout_s` overrides
+// them; every wait goes through `ctx.clock`.
 
 import { buildRequest, redactUrl, template } from './http.mjs';
 import { check, jsonPath } from './assert.mjs';
 import { readEvents } from './sse.mjs';
 
-const DEFAULT_WAIT_S = 15;
-const DEFAULT_SSE_S = 10;
+const DEFAULT_TIMEOUT_S = 15;
 const BACKOFF_MS = [250, 500, 1000, 2000];
 
 /**
@@ -141,7 +140,7 @@ async function waitState(step, ctx) {
   if (!Array.isArray(step.states) || step.states.length === 0) throw new Error('wait_state step needs a non-empty states list');
   const id = instanceId(step, ctx);
   const path = `/instances/${id}`;
-  const seconds = step.timeout_s ?? ctx.target.timeouts?.wait_s ?? DEFAULT_WAIT_S;
+  const seconds = step.timeout_s ?? ctx.target.timeouts?.wait_s ?? DEFAULT_TIMEOUT_S;
   const timeoutMs = seconds * 1000;
   const started = ctx.clock.now();
   const { url, init } = get(step, ctx, path);
@@ -167,7 +166,7 @@ async function waitState(step, ctx) {
   return {
     response,
     evidence: { method: 'GET', path: redactUrl(path), status: response.status, code: errorCode(response.json) },
-    check: { outcome: 'fail', reason: `wait_state: instance ${id} did not reach ${step.states.join('|')} within ${seconds}s; last seen ${lastSeen}` },
+    check: { outcome: 'fail', reason: `wait_state: ${redactUrl(path)} did not reach ${step.states.join('|')} within ${seconds}s; last seen ${lastSeen}` },
   };
 }
 
@@ -182,7 +181,7 @@ async function waitState(step, ctx) {
 async function sseRead(step, ctx) {
   const id = instanceId(step, ctx);
   const path = `/instances/${id}/events`;
-  const seconds = step.timeout_s ?? ctx.target.timeouts?.sse_s ?? DEFAULT_SSE_S;
+  const seconds = step.timeout_s ?? ctx.target.timeouts?.sse_s ?? DEFAULT_TIMEOUT_S;
   const headers = { accept: 'text/event-stream' };
   if (step.last_event_id !== undefined) headers['last-event-id'] = String(template(step.last_event_id, ctx.vars));
   const { url, init } = get(step, ctx, path, headers);

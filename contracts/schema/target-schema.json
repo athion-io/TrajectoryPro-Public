@@ -84,7 +84,7 @@
       "type": "object",
       "properties": {
         "wait_s": { "type": "number", "default": 15, "description": "Upper bound for wait_state polling." },
-        "sse_s": { "type": "number", "default": 10, "description": "Upper bound for one sse_read step." }
+        "sse_s": { "type": "number", "default": 15, "description": "Upper bound for one sse_read step." }
       }
     },
     "known_failures": {
