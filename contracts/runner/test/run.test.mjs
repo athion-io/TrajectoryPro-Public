@@ -228,6 +228,33 @@ describe('runSuite: skip', () => {
   });
 });
 
+describe('runSuite: attestation', () => {
+  const f = () => fixture({ attests: 'C-RLY-4', steps: [] });
+
+  test('an attested clause is a note with attestation evidence and no request', async () => {
+    const { result, fetch } = await run([f()], { target: target({ attestations: { 'C-RLY-4': true } }) });
+    assert.equal(result.outcome, 'note');
+    assert.match(result.reason, /^attested: C-RLY-4/);
+    assert.deepEqual(result.evidence, [{ attestation: 'C-RLY-4', attested: true }]);
+    assert.equal(fetch.calls.length, 0);
+  });
+
+  test('a clause the target does not attest skips naming it', async () => {
+    for (const t of [target(), target({ attestations: {} }), target({ attestations: { 'C-RLY-4': false } })]) {
+      const { result, fetch } = await run([f()], { target: t });
+      assert.equal(result.outcome, 'skip');
+      assert.match(result.reason, /C-RLY-4/);
+      assert.equal(fetch.calls.length, 0);
+    }
+  });
+
+  test('attests still honours requires first', async () => {
+    const { result } = await run([fixture({ attests: 'C-RLY-4', steps: [], requires: ['sse'] })], { target: target({ attestations: { 'C-RLY-4': true } }) });
+    assert.equal(result.outcome, 'skip');
+    assert.match(result.reason, /sse/);
+  });
+});
+
 describe('runSuite: outcomes', () => {
   const teardown = [{ kind: 'request', method: 'POST', path: '/instances/x/command', body: { command: 'ABORT' }, tolerate: true }];
 

@@ -35,7 +35,8 @@ const RUNNER_VERSION = JSON.parse(readFileSync(new URL('../package.json', import
  * @property {string} level
  * @property {'pass' | 'fail' | 'note' | 'skip'} outcome
  * @property {string} reason
- * @property {object[]} evidence  one `{method, path, status, code}` per request made
+ * @property {object[]} evidence  one `{method, path, status, code}` per request made, or one
+ *   `{attestation, attested: true}` for a fixture graded by attestation
  */
 
 /**
@@ -93,6 +94,19 @@ async function runFixture(fixture, ctx) {
   }
   if ((fixture.tags ?? []).includes('live') && !target.live_vendor) {
     return { ...base, outcome: 'skip', reason: 'live fixture; target has no live_vendor' };
+  }
+  // A clause the runner cannot observe over HTTP: the target's word is
+  // reported as a note, never a pass; without it the fixture skips.
+  if (typeof fixture.attests === 'string') {
+    if (target.attestations?.[fixture.attests] === true) {
+      return {
+        ...base,
+        outcome: 'note',
+        reason: `attested: ${fixture.attests} is declared by the target, not observed by the runner`,
+        evidence: [{ attestation: fixture.attests, attested: true }],
+      };
+    }
+    return { ...base, outcome: 'skip', reason: `target does not attest "${fixture.attests}"` };
   }
 
   const acc = { evidence: base.evidence, notes: [] };

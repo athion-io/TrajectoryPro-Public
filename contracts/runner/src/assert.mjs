@@ -29,7 +29,7 @@ import { redactUrl, redactValue } from './http.mjs';
  * @typedef {{outcome: 'pass' | 'fail' | 'note', reason: string}} CheckResult
  */
 
-const JSON_OPERATORS = ['present', 'absent', 'equals', 'type', 'in', 'matches', 'length_max'];
+const JSON_OPERATORS = ['present', 'absent', 'equals', 'not_equals', 'type', 'in', 'matches', 'length_max'];
 const PATH_TOKEN = /\.([A-Za-z0-9_-]+)|\[(-?\d+|\*)\]/y;
 
 /**
@@ -148,6 +148,9 @@ function checkJsonItem(item, json) {
       switch (op) {
         case 'equals':
           if (!isDeepStrictEqual(value, want)) return at(`is ${show(value)}, expected ${show(want)}`);
+          break;
+        case 'not_equals':
+          if (isDeepStrictEqual(value, want)) return at(`is ${show(value)}, expected a different value`);
           break;
         case 'type':
           if (!hasType(value, want)) return at(`is ${typeOf(value)} (${show(value)}), expected ${want}`);

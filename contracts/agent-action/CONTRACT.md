@@ -31,9 +31,9 @@ container rewrites that path. A target whose
 `base_url` has a different shape will send a different URL and the fixture's
 result is meaningless for it; set `base_url` as REST §1.1 prescribes.
 
-Covered: REST-01..09 and the SSE instance stream (REST-06/07). Not covered
-here: action properties (REST-10..12) and the outbound-only variant; those have
-their own contract directories.
+Covered: REST-01..09, the SSE instance stream (REST-06/07) and, in §13, the
+outbound-only variant (C-RLY, fixtures `rly-*`). Not covered here: action
+properties (REST-10..12); those have their own contract directory.
 
 | fixture | level | checks |
 |---|---|---|
@@ -279,6 +279,54 @@ target supplies `roles.guarded_action` and `roles.guarded_change_hash`.
 The reference toy target (`targets/toy.target.json`) does not declare
 `change-guard`; these three fixtures skip against it.
 
+## 13. Outbound-only variant (C-RLY)
+
+An action server may be a **door**: the HTTP surface of §§2–10 runs where the
+Runtime can reach it, and the agent that does the work dials *out* to the
+door and is never called inbound. The Runtime cannot tell a door from a
+directly hosted action server, and must not need to: **a door MUST pass every
+`agt-*` fixture.** The clauses below add what a relay changes.
+
+**C-RLY-1. Fail fast when the agent is away.** An invoke of an action whose
+agent is not connected answers `409 AGENT_UNAVAILABLE`. It MUST NOT answer
+`201` and leave the instance to hang. A door that answers `503` instead is
+recorded as a `note`, not a failure.
+
+**C-RLY-2. Retried dispatch does not start work twice.** A relay retries, so
+an invoke SHOULD be idempotent on
+(`environment_oid`, `workflow_instance_id`, `step_instance_id`, action): the
+same four values answer `201` with the *same* `instance_id`. Different runtime
+ids MUST give a different instance; de-duplication keys on the ids, never on
+the action alone. The reference door derives its key as `rai-` + the first 24
+hex digits of sha256(`env|wf|step|action`); the format is IMPL-DEFINED and
+only "same id" / "different id" is checked. For a server that is not a door
+this is agt-015's D9 choice; a door is held to the SHOULD.
+
+**C-RLY-3. Reported state lags the agent by at most `poll_interval_s` × 3**
+(the door's declared polling interval). This is checked as "the `wait_state`
+after a command succeeds within the timeout": the §7 command fixtures
+(agt-022..028) already do exactly that, so no `rly-*` fixture repeats it. A
+door whose state lags longer fails those fixtures.
+
+**C-RLY-4. No inbound port on the agent's network.** The door MUST NOT require
+the agent to accept a connection. This is not observable over HTTP, so it is
+graded by **attestation**: the target profile may declare
+`"attestations": { "C-RLY-4": true }`, and the runner records
+`note` with reason `attested: C-RLY-4 …` and evidence
+`{attestation, attested}`. A fixture graded by attestation is never a `pass`;
+without the attestation (absent or `false`) it is a `skip` naming the clause.
+
+| fixture | level | requires | checks |
+|---|---|---|---|
+| rly-001 | MUST | `roles.offline_action` | invoke → 409, `$.error.code` a string, no `instance_id` (503 → note) |
+| rly-002 | SHOULD | `roles.observable_action` | same ids twice → 201, same `instance_id` |
+| rly-003 | MUST | `roles.observable_action` | different `step_instance_id` → 201, different `instance_id` |
+| rly-004 | MUST | — | `attests: C-RLY-4` → note when attested, else skip |
+
+The reference toy attests C-RLY-4: it is in-process and has no agent
+listener at all, so the attestation is true by construction. rly-004 is
+therefore a `note` against the toy, never a `pass`.
+
 ## Expected results against the reference toy
 
 Against `targets/toy.target.json` with no defects: 29 `pass`, 3 `skip`
@@ -290,3 +338,9 @@ Against `targets/toy.target.json` with no defects: 29 `pass`, 3 `skip`
 | `no-auth` | agt-002, agt-003 |
 | `accept-any-command` | agt-020, agt-021 (agt-028 becomes a note) |
 | `bad-envelope` | agt-002, agt-010, agt-014 and every other fixture that reads an envelope (§2) |
+
+The `rly-*` fixtures (§13, pinned by `runner/test/relay.test.mjs`): rly-001,
+rly-002 and rly-003 `pass`; rly-004 is `note` (`attested: C-RLY-4`); zero
+`fail`, exit code 0. With the toy defect `non-idempotent-invoke` only rly-002
+changes, to `note` (`SHOULD not met`); the `agt-*` outcomes are unchanged
+except agt-015, which records the other D9 variant and still passes.

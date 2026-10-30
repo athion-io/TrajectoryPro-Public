@@ -162,6 +162,15 @@ describe('check: json', () => {
     bad({ path: '$.data.missing', equals: 'x' });
   });
 
+  test('not_equals passes on a different value and fails on the same one', () => {
+    assert.equal(ok({ path: '$.data.state', not_equals: 'HELD' }).outcome, 'pass');
+    assert.equal(ok({ path: '$.data.tags', not_equals: ['a'] }).outcome, 'pass');
+    const r = bad({ path: '$.data.state', not_equals: 'EXECUTING' });
+    assert.match(r.reason, /EXECUTING/);
+    assert.match(r.reason, /different/);
+    bad({ path: '$.data.missing', not_equals: 'x' });
+  });
+
   test('type', () => {
     assert.equal(ok({ path: '$.data.state', type: 'string' }).outcome, 'pass');
     assert.equal(ok({ path: '$.data.count', type: 'number' }).outcome, 'pass');

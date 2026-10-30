@@ -312,6 +312,19 @@ describe('loadTarget', () => {
   test('a target file that does not exist is rejected', async () => {
     await assert.rejects(loadTarget(path.join(scratchRoot, 'missing.target.json')), LintError);
   });
+
+  test('attestations is an optional map of clause id -> boolean', async () => {
+    const t = await loadTarget(writeTarget({ ...validTarget(), attestations: { 'C-RLY-4': true } }));
+    assert.deepEqual(t.attestations, { 'C-RLY-4': true });
+    await assert.rejects(loadTarget(writeTarget({ ...validTarget(), attestations: ['C-RLY-4'] })), (e) => {
+      assert.match(e.problems[0], /attestations/);
+      return true;
+    });
+    await assert.rejects(loadTarget(writeTarget({ ...validTarget(), attestations: { 'C-RLY-4': 'yes' } })), (e) => {
+      assert.match(e.problems[0], /attestations\.C-RLY-4/);
+      return true;
+    });
+  });
 });
 
 describe('capability roles', () => {

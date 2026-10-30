@@ -1,0 +1,14 @@
+{
+  "test_id": "rly-004",
+  "name": "A door opens no inbound listener for agents: agent traffic is outbound from the agent only (C-RLY-4). Not observable over HTTP; graded by target attestation, reported as a note never a pass",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "C-RLY-4",
+  "tags": [
+    "relay",
+    "attestation"
+  ],
+  "requires": [],
+  "attests": "C-RLY-4",
+  "steps": []
+}

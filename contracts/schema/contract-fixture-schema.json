@@ -39,6 +39,10 @@
       "items": { "type": "string" },
       "description": "Capabilities, roles and extensions the target must declare for this fixture to run; otherwise it is skipped. Every {{roles.X}} placeholder in the fixture must name X here, or a capability listed here must imply it (see CAPABILITY_ROLES in runner/src/load.mjs). environment_oid is always available."
     },
+    "attests": {
+      "type": "string",
+      "description": "A clause id (for example \"C-RLY-4\") that cannot be observed over HTTP. The runner does not run the fixture's steps (keep steps empty): when the target's attestations map has the clause set to true the result is note with reason \"attested: <clause> ...\"; otherwise it is skip. Never a pass."
+    },
     "setup": {
       "type": "array",
       "items": { "$ref": "#/$defs/step" },
@@ -144,6 +148,7 @@
               "present": { "type": "boolean" },
               "absent": { "type": "boolean" },
               "equals": {},
+              "not_equals": { "description": "Fails when the value at path deeply equals this (for example a captured {{first_iid}}). Nothing at the path is a failure, as for equals." },
               "type": { "type": "string" },
               "in": { "type": "array" },
               "matches": { "type": "string", "description": "A regular expression." },

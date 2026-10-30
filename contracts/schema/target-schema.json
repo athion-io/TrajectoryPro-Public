@@ -92,6 +92,11 @@
       "additionalProperties": { "type": "string" },
       "description": "test_id -> reason. A listed fixture still runs; a failure is reported as expected and does not change the exit code."
     },
+    "attestations": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" },
+      "description": "Clause id -> true. Declares that the implementation meets a clause the runner cannot observe over HTTP (for example C-RLY-4, no inbound port on the agent's network). A fixture with attests: <clause> reports note \"attested\" when the clause is true here and skip otherwise. An attestation is the implementer's word, not a measurement; the report never shows it as pass."
+    },
     "live_vendor": {
       "type": "boolean",
       "default": false,

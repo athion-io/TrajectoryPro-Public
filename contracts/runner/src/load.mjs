@@ -30,6 +30,7 @@ import path from 'node:path';
  * @property {string} [source]  REST_Protocol section or contract clause (required for MUST and SHOULD)
  * @property {string[]} tags
  * @property {string[]} requires  capabilities, roles and extensions the target must declare
+ * @property {string} [attests]  clause id the target must attest (steps are not run; note when attested, skip otherwise)
  * @property {object[]} [setup]
  * @property {object[]} steps
  * @property {object} [expected]
@@ -48,6 +49,7 @@ import path from 'node:path';
  * @property {Record<string, string>} roles
  * @property {{wait_s?: number, sse_s?: number}} [timeouts]
  * @property {Record<string, string>} [known_failures]
+ * @property {Record<string, boolean>} [attestations]  clause id -> true when the implementer attests a clause the runner cannot observe
  * @property {boolean} [live_vendor]
  */
 
@@ -271,6 +273,17 @@ export async function loadTarget(filePath) {
   }
   for (const role of ALWAYS_ROLES) {
     if (typeof roles[role] !== 'string') problem(`roles.${role} is required for every target`);
+  }
+
+  if ('attestations' in obj) {
+    const att = obj.attestations;
+    if (att === null || typeof att !== 'object' || Array.isArray(att)) {
+      problem('attestations must be an object of clause id -> boolean');
+    } else {
+      for (const [clause, value] of Object.entries(att)) {
+        if (typeof value !== 'boolean') problem(`attestations.${clause} must be true or false`);
+      }
+    }
   }
 
   if (problems.length > 0) throw new LintError(problems);

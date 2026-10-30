@@ -16,5 +16,6 @@
     "cors_origin": "http://runtime.test"
   },
   "timeouts": { "wait_s": 15, "sse_s": 15 },
-  "known_failures": {}
+  "known_failures": {},
+  "attestations": { "C-RLY-4": true }
 }

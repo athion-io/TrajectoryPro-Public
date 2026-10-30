@@ -55,7 +55,8 @@ async function runAgentAction({ defects = [], only, toy: toyOpts = {} } = {}) {
   const clock = drivingClock();
   const toy = makeToy({ apiKey: 'k', defects, clock, ...toyOpts });
   clock.attach(toy);
-  let fixtures = await loadFixtures(ROOT, { categories: ['agent-action'] });
+  // The rly-* fixtures in the same category are pinned by relay.test.mjs.
+  let fixtures = (await loadFixtures(ROOT, { categories: ['agent-action'] })).filter((f) => f.test_id.startsWith('agt-'));
   if (only) fixtures = fixtures.filter((f) => only.includes(f.test_id));
   const target = await loadTarget(TARGET);
   return runSuite({ fixtures, target, apiKey: 'k', fetch: toy.fetch, clock, fixturesCommit: 'test' });
