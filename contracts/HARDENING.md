@@ -141,7 +141,7 @@ URL. The protocol says the key travels in `X-API-Key` and that
   `?token=<apiKey>` to the event-stream URL.
 - `MissionAutopilotTester/src/features/connection-bar/ConnectionModal.tsx:112`
   — helper text "Sent as 'Authorization: Bearer …'".
-- `docs/REST_Protocol.md:43-46` — `X-API-Key: <secret>`;
+- `docs/REST_Protocol.md:43-48` — `X-API-Key: <secret>`;
   `docs/REST_Protocol.md:60` — "The `Authorization` header is reserved for
   future bearer/OAuth flows."
 - Why it works today: `MissionAutopilot/packages/server/src/middleware/auth.ts:29-44`
@@ -522,7 +522,7 @@ on its routes uses. Its `/health` is at the root only and answers
 - `MissionEngine/src/actions/client.ts:235-241` — the engine sends
   `Authorization: Bearer` to the broker origin and `X-API-Key` to the
   Mission Autopilot origin, "each credential goes to its own origin only".
-- `docs/REST_Protocol.md:43-46` — `X-API-Key: <secret>`;
+- `docs/REST_Protocol.md:43-48` — `X-API-Key: <secret>`;
   `docs/REST_Protocol.md:60` — `Authorization` is reserved.
   `agent-action/CONTRACT.md:58-62` — C-AGT-3.
 

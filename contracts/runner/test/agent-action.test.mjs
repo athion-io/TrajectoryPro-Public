@@ -51,15 +51,18 @@ function drivingClock(start = 1_000) {
   };
 }
 
+// Distinctive so a leak anywhere in the serialized report is caught.
+const API_KEY = 'sk-test-DO-NOT-LEAK-7f3a';
+
 async function runAgentAction({ defects = [], only, toy: toyOpts = {} } = {}) {
   const clock = drivingClock();
-  const toy = makeToy({ apiKey: 'k', defects, clock, ...toyOpts });
+  const toy = makeToy({ apiKey: API_KEY, defects, clock, ...toyOpts });
   clock.attach(toy);
   // The rly-* fixtures in the same category are pinned by relay.test.mjs.
   let fixtures = (await loadFixtures(ROOT, { categories: ['agent-action'] })).filter((f) => f.test_id.startsWith('agt-'));
   if (only) fixtures = fixtures.filter((f) => only.includes(f.test_id));
   const target = await loadTarget(TARGET);
-  return runSuite({ fixtures, target, apiKey: 'k', fetch: toy.fetch, clock, fixturesCommit: 'test' });
+  return runSuite({ fixtures, target, apiKey: API_KEY, fetch: toy.fetch, clock, fixturesCommit: 'test' });
 }
 
 const byId = (report) => Object.fromEntries(report.results.map((r) => [r.test_id, r]));
@@ -128,9 +131,8 @@ describe('agent-action fixtures vs clean toy', () => {
     }
   });
 
-  test('evidence never contains the API key', () => {
-    const text = JSON.stringify(report);
-    assert.ok(!/"x-api-key":\s*"k"/i.test(text), 'key is redacted');
+  test('report never contains the API key', () => {
+    assert.ok(!JSON.stringify(report).includes(API_KEY), 'api key leaked');
   });
 });
 

@@ -1,3 +1,19 @@
+<!--
+Copyright 2026 Athion, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Agent-as-action contract (`agent-action`)
 
 Conformance clauses for an **action container** exposing the Trajectory
@@ -9,7 +25,8 @@ protocol document wins and the fixture here is wrong.
 
 Levels follow `contracts/README.md`: **MUST** fixtures gate the exit code;
 **SHOULD** fixtures record a `note` when unmet; **IMPL-DEFINED** fixtures
-record the observed variant and never affect the exit code;
+are recorded as `pass` or `fail` like any other but never affect the exit
+code (only a `fail` at level MUST does);
 **EXTENSION:<name>** fixtures run only against targets that declare the
 extension and never affect the exit code.
 
