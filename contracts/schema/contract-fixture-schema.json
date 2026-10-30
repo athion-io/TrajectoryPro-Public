@@ -93,7 +93,11 @@
         "tolerate": { "type": "boolean", "description": "Do not fail the fixture if this step errors (used in teardown)." },
         "instance": { "type": "string", "description": "Instance id for wait_state and sse_read." },
         "states": { "type": "array", "items": { "type": "string" }, "description": "States that satisfy a wait_state step." },
-        "timeout_s": { "type": "number", "description": "Per-step override of the target's wait_s / sse_s." }
+        "timeout_s": { "type": "number", "description": "Per-step override of the target's wait_s / sse_s." },
+        "last_event_id": { "type": ["string", "number"], "description": "sse_read: sent as the Last-Event-ID header to resume a stream." },
+        "max": { "type": "integer", "minimum": 1, "description": "sse_read: stop after this many events." },
+        "until_state": { "type": "array", "items": { "type": "string" }, "description": "sse_read: stop after a state_change into one of these states." },
+        "capture_events": { "type": "string", "description": "sse_read: name of the var that receives the events array. The step's response body is {events, ended} where ended is count | state | timeout | end, so expect and capture can read $.events and $.ended." }
       }
     },
     "expect": {

@@ -14,10 +14,17 @@
 
 // Step kinds. Each kind takes a step and the fixture context and returns the
 // response it produced (if any), redacted evidence, and the expectation result.
-// `wait_state` and `sse_read` are added in a later task.
+// Bounded waits (`wait_state`, `sse_read`) default to the target's `timeouts`
+// (`wait_s` 15, `sse_s` 10) and a step's `timeout_s` overrides them; every wait
+// goes through `ctx.clock`.
 
-import { buildRequest, redactUrl } from './http.mjs';
+import { buildRequest, redactUrl, template } from './http.mjs';
 import { check, jsonPath } from './assert.mjs';
+import { readEvents } from './sse.mjs';
+
+const DEFAULT_WAIT_S = 15;
+const DEFAULT_SSE_S = 10;
+const BACKOFF_MS = [250, 500, 1000, 2000];
 
 /**
  * @typedef {object} StepContext
@@ -25,7 +32,7 @@ import { check, jsonPath } from './assert.mjs';
  * @property {Record<string, unknown>} vars  `roles`, `uniq` and captured names; mutated by captures
  * @property {string | undefined} apiKey
  * @property {typeof fetch} fetch
- * @property {{now: () => number, sleep: (ms: number) => Promise<void>}} clock
+ * @property {import('./sse.mjs').Clock} clock  every wait goes through this; `sleep` honours an AbortSignal
  * @property {(line: string) => void} log
  * @property {Map<string, StepResponse>} responses  responses by step id, for `capture` steps
  */
@@ -67,22 +74,7 @@ async function request(step, ctx) {
   } catch (err) {
     throw new Error(`request ${method} ${redactUrl(path)} failed: ${err?.message ?? err}`);
   }
-  const text = await res.text();
-  let json;
-  try {
-    json = text === '' ? undefined : JSON.parse(text);
-  } catch {
-    json = undefined;
-  }
-  const response = { status: res.status, headers: res.headers, json, text };
-  if (step.id) ctx.responses.set(step.id, response);
-  applyCapture(step.capture, response, ctx.vars);
-  const code = json && typeof json === 'object' && json.error && typeof json.error === 'object' ? (json.error.code ?? null) : null;
-  return {
-    response,
-    evidence: { method, path: redactUrl(path), status: res.status, code },
-    check: check(step.expect, response),
-  };
+  return finish(step, ctx, await readBody(res), method, path);
 }
 
 /** @type {(step: object, ctx: StepContext) => Promise<StepResult>} */
@@ -93,8 +85,139 @@ async function capture(step, ctx) {
   return { check: { outcome: 'pass', reason: '' } };
 }
 
+/** Reads a response body as text and parses it as JSON when it is JSON. */
+async function readBody(res) {
+  const text = await res.text();
+  let json;
+  try {
+    json = text === '' ? undefined : JSON.parse(text);
+  } catch {
+    json = undefined;
+  }
+  return { status: res.status, headers: res.headers, json, text };
+}
+
+function errorCode(json) {
+  return json && typeof json === 'object' && json.error && typeof json.error === 'object' ? (json.error.code ?? null) : null;
+}
+
+/** Finishes a step that produced a response: id, capture, evidence, expect. */
+function finish(step, ctx, response, method, path) {
+  if (step.id) ctx.responses.set(step.id, response);
+  applyCapture(step.capture, response, ctx.vars);
+  return {
+    response,
+    evidence: { method, path: redactUrl(path), status: response.status, code: errorCode(response.json) },
+    check: check(step.expect, response),
+  };
+}
+
+/** The templated instance id of a wait_state / sse_read step. */
+function instanceId(step, ctx) {
+  if (typeof step.instance !== 'string' || step.instance === '') throw new Error(`${step.kind} step needs an instance`);
+  return String(template(step.instance, ctx.vars));
+}
+
+/** A GET of `path` on the target, honouring the step's auth / probe flags. */
+function get(step, ctx, path, headers = {}) {
+  const { url, init } = buildRequest(ctx.target, { ...step, method: 'GET', path, body: undefined, headers: { ...(step.headers ?? {}), ...headers } }, ctx.vars, ctx.apiKey);
+  return { url, init };
+}
+
+/** `data.state.current` of an instance body, or `data.state` when it is a bare string. */
+function currentState(json) {
+  const state = json?.data?.state;
+  if (typeof state === 'string') return state;
+  return typeof state?.current === 'string' ? state.current : null;
+}
+
+/**
+ * Polls GET /instances/{id} until `state.current` is one of `states` or the
+ * bound passes. Backoff 250 ms doubling to 2 s, clipped to the deadline.
+ * A timeout is a failed check naming the last state seen.
+ * @type {(step: object, ctx: StepContext) => Promise<StepResult>}
+ */
+async function waitState(step, ctx) {
+  if (!Array.isArray(step.states) || step.states.length === 0) throw new Error('wait_state step needs a non-empty states list');
+  const id = instanceId(step, ctx);
+  const path = `/instances/${id}`;
+  const seconds = step.timeout_s ?? ctx.target.timeouts?.wait_s ?? DEFAULT_WAIT_S;
+  const timeoutMs = seconds * 1000;
+  const started = ctx.clock.now();
+  const { url, init } = get(step, ctx, path);
+
+  let lastSeen = 'nothing';
+  let response;
+  for (let attempt = 0; ; attempt += 1) {
+    let res;
+    try {
+      res = await ctx.fetch(url, init);
+    } catch (err) {
+      throw new Error(`wait_state GET ${redactUrl(path)} failed: ${err?.message ?? err}`);
+    }
+    response = await readBody(res);
+    const current = res.status === 200 ? currentState(response.json) : null;
+    if (current !== null && step.states.includes(current)) return finish(step, ctx, response, 'GET', path);
+    lastSeen = current ?? `HTTP ${res.status}${errorCode(response.json) ? ` ${errorCode(response.json)}` : ''}`;
+
+    const remaining = timeoutMs - (ctx.clock.now() - started);
+    if (remaining <= 0) break;
+    await ctx.clock.sleep(Math.min(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)], remaining));
+  }
+  return {
+    response,
+    evidence: { method: 'GET', path: redactUrl(path), status: response.status, code: errorCode(response.json) },
+    check: { outcome: 'fail', reason: `wait_state: instance ${id} did not reach ${step.states.join('|')} within ${seconds}s; last seen ${lastSeen}` },
+  };
+}
+
+/**
+ * Opens GET /instances/{id}/events and reads events until `max`,
+ * `until_state`, the bound or the server closing. The step's response is a
+ * synthetic JSON body `{events, ended}` so `expect` and `capture` work on it;
+ * `capture_events` names a var that receives the events array. A non-200
+ * response is read and graded like a request. The body is aborted when done.
+ * @type {(step: object, ctx: StepContext) => Promise<StepResult>}
+ */
+async function sseRead(step, ctx) {
+  const id = instanceId(step, ctx);
+  const path = `/instances/${id}/events`;
+  const seconds = step.timeout_s ?? ctx.target.timeouts?.sse_s ?? DEFAULT_SSE_S;
+  const headers = { accept: 'text/event-stream' };
+  if (step.last_event_id !== undefined) headers['last-event-id'] = String(template(step.last_event_id, ctx.vars));
+  const { url, init } = get(step, ctx, path, headers);
+  const controller = new AbortController();
+  init.signal = controller.signal;
+
+  let res;
+  try {
+    res = await ctx.fetch(url, init);
+  } catch (err) {
+    throw new Error(`sse_read GET ${redactUrl(path)} failed: ${err?.message ?? err}`);
+  }
+  let response;
+  try {
+    if (res.status !== 200) {
+      response = await readBody(res);
+    } else {
+      const result = await readEvents(res, {
+        max: step.max ?? Infinity,
+        untilState: step.until_state,
+        timeoutMs: seconds * 1000,
+        signal: controller.signal,
+        clock: ctx.clock,
+      });
+      response = { status: res.status, headers: res.headers, json: result, text: '' };
+      if (typeof step.capture_events === 'string') ctx.vars[step.capture_events] = result.events;
+    }
+  } finally {
+    controller.abort();
+  }
+  return finish(step, ctx, response, 'GET', path);
+}
+
 /** @type {Record<string, (step: object, ctx: StepContext) => Promise<StepResult>>} */
-export const STEP_KINDS = { request, capture };
+export const STEP_KINDS = { request, capture, wait_state: waitState, sse_read: sseRead };
 
 /**
  * Runs one step.

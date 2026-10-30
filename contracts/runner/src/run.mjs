@@ -19,11 +19,14 @@ import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 
 import { runStep } from './steps.mjs';
+import { systemClock } from './sse.mjs';
+
+export { systemClock };
 
 const RUNNER_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 /**
- * @typedef {{now: () => number, sleep: (ms: number) => Promise<void>}} Clock
+ * @typedef {import('./sse.mjs').Clock} Clock
  */
 
 /**
@@ -44,12 +47,6 @@ const RUNNER_VERSION = JSON.parse(readFileSync(new URL('../package.json', import
  * @property {{pass: number, fail: number, note: number, skip: number}} totals
  * @property {Result[]} results
  */
-
-/** @type {Clock} */
-export const systemClock = {
-  now: () => Date.now(),
-  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-};
 
 /** Returns the first `requires` entry the target does not satisfy, or undefined. */
 function missingRequirement(fixture, target) {
