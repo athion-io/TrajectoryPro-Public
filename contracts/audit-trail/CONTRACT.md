@@ -17,11 +17,10 @@ limitations under the License.
 # Audit-trail contract (`audit-trail`)
 
 Conformance clauses for the **hash-chained audit trail** that a Trajectory
-runtime keeps per scope (workflow, instance, twin). The chain format is fixed
-by design decision D7 of the ISA-113 twin-change design
-(`2026-10-29-isa113-twin-change-design.md`); this document restates only what
-a conformance check needs. Where the two disagree, the design document wins
-and the fixture here is wrong.
+runtime keeps per scope (workflow, instance, twin). The hash recipe is fixed
+by the ISA-113 contracts plan, decision D7, restated in full under C-AUD-3
+below so this document stands on its own. Where this document and the plan
+disagree, the plan wins and the fixture here is wrong.
 
 Levels follow `contracts/README.md`: **MUST** fixtures gate the exit code.
 Every fixture in this directory is MUST and cites its clause in `source` as
@@ -29,47 +28,76 @@ Every fixture in this directory is MUST and cites its clause in `source` as
 
 Fixtures live in [`fixtures/`](fixtures/), one per file,
 `aud-<nnn>-<slug>.json`. Trail inputs live in
-[`fixtures/trails/`](fixtures/trails/), one NDJSON file per trail (§9).
+[`fixtures/trails/`](fixtures/trails/), one NDJSON file per trail (§5).
 
-## 1. Event shape
+## 1. Clauses
 
-**C-AUD-1.** An audit event is a JSON object with at least `id` (string,
-unique within the trail), `ts` (RFC 3339 UTC), `scope_id`, `kind`,
-`payload` (object), `prev_hash`, `hash` and `signature`. Unknown fields are
-permitted and are hashed like any other field.
+**C-AUD-1. Event fields.** An audit event is a JSON object with the fields
+`id`, `ts`, `actor`, `action`, `scope_kind`, `scope_id`, `resource_type`,
+`resource_id`, `rev`, `reason`, `payload`, `subject_hash`, `recipe`,
+`prev_hash`, `hash` and `signature`. `payload` is an object. Unknown fields
+are allowed and are included in the hash like any other field.
 
-**C-AUD-2.** Canonical form is RFC 8785 JCS. `hash` is the lowercase hex
-SHA-256 of the JCS form of the event with `hash` and `signature` removed,
-written either bare or as `sha256:<hex>`. A `recipe` field, when present,
-names this recipe as `jcs-sha256`. Events whose JSON cannot be
+**C-AUD-2. Timestamp.** `ts` is ISO-8601 UTC with millisecond precision,
+for example `2026-10-29T14:03:07.250Z`.
+
+**C-AUD-3. Hash (D7).** Canonical form is RFC 8785 JCS. `hash` is the
+SHA-256 of the JCS form of the event with `hash` and `signature` removed
+(the event's *content hash*), rendered `sha256:<hex>` with lowercase hex;
+a bare 64-character hex digest is accepted. A `recipe` field, when present,
+names this recipe as `jcs-sha256`. A stored `hash` that does not equal the
+recomputed content hash is the issue `altered`. Events whose JSON cannot be
 canonicalized (non-finite numbers, lone surrogates, non-object events) are
-not events: a verifier MUST reject the whole trail rather than report
-issues on it.
+not events: a verifier MUST reject the whole trail rather than report issues
+on it.
+
+**C-AUD-4. Chain.** `prev_hash` is the previous event's `hash`. The genesis
+event (index 0) carries `prev_hash: ""`.
+
+**C-AUD-5. Unique ids.** Event `id`s are unique within a trail.
+
+**C-AUD-6. No secrets.** A runtime MUST NOT write secrets into `payload`:
+no key at any depth matching `/(password|secret|token|api[_-]?key)/i` may
+hold a non-empty string.
+
+**C-AUD-7. Subject hash.** `subject_hash` is the content hash of the
+artifact the event acted on (for example a change proposal's attested part),
+computed with the C-AUD-3 recipe, so a trail proves *what* was approved and
+not only that an approval happened. Which artifact is the subject is the
+runtime's choice per action; the toy uses `sha256(JCS(payload))`, which is
+one acceptable choice, not the definition.
+
+**C-AUD-8. Action vocabulary.** The `action` vocabulary is open. These names
+are RECOMMENDED so trails from different runtimes read alike: `run.started`,
+`step.invoked`, `step.state`, `step.done`, `step.failed`, `command.sent`,
+`command.refused`, `gate.opened`, `proposal.approved`, `run.completed`.
+
+Only C-AUD-3..6 have fixtures. C-AUD-1, 2, 7 and 8 shape the trails the
+fixtures carry and the toy exports, but no fixture fails a trail for a
+missing field, a timestamp format, a subject hash or an action name.
 
 ## 2. Verification
 
 A verifier walks the trail in order and reports **issues**, each
 `{ index, id, issue }` where `index` is the 0-based position in the trail
-and `issue` is one of the kinds below. Issues carry no payload values.
+and `issue` is one of the kinds below. Issues carry no payload values. The
+verifier in this repository (`contracts/runner/src/audit.mjs`) is the
+reference implementation of C-AUD-3..6.
 
-**C-AUD-3.** `altered` — the stored `hash` does not equal the recomputed
-digest of the event's content. Every other event in the trail stays
-verifiable; the issue lands only at the altered index.
-
-**C-AUD-4.** `broken_link` — `prev_hash` does not equal the previous
-event's `hash`. The genesis event (index 0) MUST carry `prev_hash: ""`;
-any other value there is `bad_genesis`. Reordering events breaks the link
-at the first displaced position and at every following position until the
-chain realigns.
-
-**C-AUD-5.** `duplicate_id` — the event's `id` was already seen earlier in
-the trail. It is reported at the later occurrence.
-
-**C-AUD-6.** `secret_in_payload` — some key at any depth of `payload`
-matches `/(password|secret|token|api[_-]?key)/i` and holds a non-empty
-string. The runtime MUST NOT write such payloads; a verifier flags them so
-leaks surface in review. Neither the key nor the value appears in the issue
-or in any runner report.
+- `altered` (C-AUD-3) — the stored `hash` does not equal the recomputed
+  content hash. Every other event in the trail stays verifiable; the issue
+  lands only at the altered index.
+- `broken_link` (C-AUD-4) — `prev_hash` does not equal the previous event's
+  `hash`. Reordering events breaks the link at the first displaced position
+  and at every following position until the chain realigns.
+- `bad_genesis` (C-AUD-4) — the event at index 0 carries anything other than
+  `prev_hash: ""`.
+- `duplicate_id` (C-AUD-5) — the event's `id` was already seen earlier in
+  the trail. It is reported at the later occurrence.
+- `secret_in_payload` (C-AUD-6) — a payload key matching the C-AUD-6 pattern
+  holds a non-empty string. Neither the key nor the value appears in the
+  issue or in any runner report; the verifier flags the leak so it surfaces
+  in review.
 
 Within one event the report order is `altered`, then `bad_genesis` /
 `broken_link`, then `duplicate_id`, then `secret_in_payload`. A verifier
@@ -84,19 +112,21 @@ that finds no issues reports an empty list.
 | aud-005 | MUST | C-AUD-5 | `duplicate-id` | `duplicate_id` @4 |
 | aud-006 | MUST | C-AUD-6 | `secret` | `secret_in_payload` @3 |
 
-## 3. Export
+## 3. Export and offline verification
 
-**C-AUD-7.** A runtime exposes its own trail for a scope as NDJSON
+A runtime exposes its own trail for a scope as NDJSON
 (`application/x-ndjson`): one event per line, chain order, no envelope. The
-exported trail MUST verify clean under §2 with the verifier in this
-repository (`contracts/runner/src/audit.mjs`), which is the reference
-implementation of C-AUD-2..6.
+exported trail MUST verify clean under §2; that is what aud-010 checks, and
+its `source` is C-AUD-3 because a clean verification is the hash recipe
+holding across the runtime's own events (with C-AUD-4..6 checked on the way).
 
-**C-AUD-8.** Anyone holding an exported trail can verify it **offline** with
-no access to the runtime: the runner's `--audit-file <path>` option reads a
-local NDJSON file and exits `0` (no issues), `1` (issues reported) or `2`
-(file unreadable, not NDJSON, or uncanonicalizable). The exit-2 case is
-deliberate: a trail that cannot be hashed is not "clean", it is unverifiable.
+Anyone holding an exported trail can verify it **offline** with no access to
+the runtime: the runner's `--audit-file <path>` option reads a local NDJSON
+file and exits `0` (no issues), `1` (issues reported) or `2` (file
+unreadable, not NDJSON, or uncanonicalizable). The exit-2 case is deliberate:
+a trail that cannot be hashed is not "clean", it is unverifiable. This is the
+same verifier as the probe path, so a runtime without the probe can still be
+checked from an export it hands over by other means.
 
 | fixture | level | source | checks |
 |---|---|---|---|
@@ -116,7 +146,7 @@ header and the REST error envelope (`docs/REST_Protocol.md` §1.3, §1.5).
 **`POST {probe_url}/audit/verify`** — body `{ "events": [ … ] }`. Answers
 `200 { "data": { "issues": [ … ], "events": <n> }, "meta": {} }` with the §2
 issue list, or `400 VALIDATION_ERROR` when the body is not an object with an
-`events` array or the trail cannot be canonicalized (C-AUD-2).
+`events` array or the trail cannot be canonicalized (C-AUD-3).
 
 **`GET {probe_url}/audit/export?scope_id=<id>`** — answers `200` with
 `content-type: application/x-ndjson` and the scope's trail, or
