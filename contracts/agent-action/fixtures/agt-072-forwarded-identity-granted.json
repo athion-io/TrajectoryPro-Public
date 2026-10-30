@@ -1,0 +1,64 @@
+{
+  "test_id": "agt-072",
+  "name": "A valid forwarded user with the grant invokes normally: 201 with an instance id",
+  "category": "agent-action",
+  "level": "EXTENSION:forwarded-identity",
+  "tags": [
+    "forwarded-identity",
+    "auth",
+    "invoke"
+  ],
+  "requires": [
+    "forwarded-identity",
+    "observable_action",
+    "user_token"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "headers": {
+        "X-Trajectory-User": "Bearer {{user_token}}"
+      },
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201,
+        "json": [
+          {
+            "path": "$.data.instance_id",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "headers": {
+        "X-Trajectory-User": "Bearer {{user_token}}"
+      },
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

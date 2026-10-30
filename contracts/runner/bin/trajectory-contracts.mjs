@@ -15,7 +15,9 @@
 
 // Command line entry point. Loads fixtures and a target, runs the suite and
 // writes the report. Exit codes: 0 no MUST failed, 1 a MUST failed,
-// 2 usage, lint or target error. The API key comes from CONTRACTS_API_KEY.
+// 2 usage, lint or target error. The API key comes from CONTRACTS_API_KEY;
+// forwarded-identity user tokens from CONTRACTS_USER_TOKEN and
+// CONTRACTS_UNGRANTED_USER_TOKEN. Secrets are never read from a target file.
 
 import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
@@ -38,6 +40,10 @@ const USAGE = `Usage: trajectory-contracts --target <file> [options]
 
 Environment:
   CONTRACTS_API_KEY      API key sent as the target's auth header
+  CONTRACTS_USER_TOKEN   forwarded-identity user token with the grant ({{user_token}})
+  CONTRACTS_UNGRANTED_USER_TOKEN
+                         valid user token without the grant ({{ungranted_user_token}});
+                         fixtures that need a token the runner was not given skip
 
 Exit codes: 0 no MUST failed, 1 a MUST failed, 2 usage, lint or target error.`;
 
@@ -119,6 +125,10 @@ async function main(argv) {
     fixtures,
     target,
     apiKey,
+    userTokens: {
+      user_token: process.env.CONTRACTS_USER_TOKEN,
+      ungranted_user_token: process.env.CONTRACTS_UNGRANTED_USER_TOKEN,
+    },
     auditFile: args['audit-file'],
     fixturesCommit: fixturesCommit(),
     log: (line) => process.stdout.write(`${line}\n`),

@@ -279,6 +279,62 @@ target supplies `roles.guarded_action` and `roles.guarded_change_hash`.
 The reference toy target (`targets/toy.target.json`) does not declare
 `change-guard`; these three fixtures skip against it.
 
+### `forwarded-identity`
+
+*Proposal (auth option B). The header name is a question for Dennis.*
+
+A caller that acts for a user forwards that user's identity in a second
+header alongside the service key:
+
+```
+X-API-Key: <service key>
+X-Trajectory-User: Bearer <user token>      (proposal — question for Dennis)
+```
+
+`Authorization` is not used because REST §1.3 reserves it; the service key
+still authenticates the caller (§3) and is checked first. The header is
+optional: a request without it is a plain service call and behaves exactly
+as without the extension.
+
+A container declaring `forwarded-identity` MUST, on every authenticated
+endpoint that receives the header:
+
+- answer `401 USER_UNAUTHORIZED` when the user token is missing its `Bearer`
+  scheme, malformed, expired or unknown;
+- answer `403 FORBIDDEN` when the user token is valid but that user holds no
+  grant for the requested action;
+- carry a `details.user` object in both errors (what the container knows
+  about the user, e.g. `{ "subject": ... }`, `null` subject when the token
+  could not be read) — and never the token itself;
+- never store the token: it may be verified and attributed (an instance may
+  record who invoked it) but it MUST NOT appear in instances, events, logs
+  or the audit trail. The toy keeps only a token → user map for the check.
+
+The runner treats the header value as a secret: it is redacted like
+`X-API-Key` and `Authorization` in reports, logs and evidence. Tokens come
+from the operator's environment only, never from a target file:
+
+| env var | placeholder | meaning |
+|---|---|---|
+| `CONTRACTS_USER_TOKEN` | `{{user_token}}` | a user who holds the grant |
+| `CONTRACTS_UNGRANTED_USER_TOKEN` | `{{ungranted_user_token}}` | a valid user who does not |
+
+A fixture lists the placeholder name in `requires`; when the runner was not
+given that token the fixture skips with reason
+`runner was not given "<name>"`. agt-070 sends a literal, deliberately
+invalid token and needs nothing from the environment.
+
+| fixture | level | checks |
+|---|---|---|
+| agt-070 | EXTENSION:forwarded-identity | invalid user token → 401 `USER_UNAUTHORIZED`, `details.user` present |
+| agt-071 | EXTENSION:forwarded-identity | valid user without the grant → 403 `FORBIDDEN`, `details.user` present |
+| agt-072 | EXTENSION:forwarded-identity | valid user with the grant → 201 with `instance_id` |
+
+The reference toy target does not declare `forwarded-identity`; these three
+fixtures skip against it. The toy implements the extension only when built
+with `makeToy({ extensions: ['forwarded-identity'] })`, and its two fake
+tokens are exposed as `toy.userTokens` for the runner tests.
+
 ## 13. Outbound-only variant (C-RLY)
 
 An action server may be a **door**: the HTTP surface of §§2–10 runs where the
@@ -338,9 +394,9 @@ at all, so the attestation is true by construction. rly-004 is therefore a
 ## Expected results against the reference toy
 
 Against `targets/toy.target.json` with no defects, the whole category
-(agt-* and rly-*) gives 32 `pass`, 1 `note` (rly-004), 3 `skip`
-(agt-060..062), zero `fail`, exit code 0; the `agt-*` fixtures alone are
-29 `pass`, 3 `skip`. With a toy defect switched on
+(agt-* and rly-*) gives 32 `pass`, 1 `note` (rly-004), 6 `skip`
+(agt-060..062, agt-070..072), zero `fail`, exit code 0; the `agt-*` fixtures
+alone are 29 `pass`, 6 `skip`. With a toy defect switched on
 (`runner/test/agent-action.test.mjs`):
 
 | defect | fixtures that fail |

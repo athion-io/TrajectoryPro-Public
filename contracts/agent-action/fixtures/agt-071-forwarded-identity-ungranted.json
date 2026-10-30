@@ -1,0 +1,55 @@
+{
+  "test_id": "agt-071",
+  "name": "A valid forwarded user without the grant answers 403 FORBIDDEN with details.user",
+  "category": "agent-action",
+  "level": "EXTENSION:forwarded-identity",
+  "tags": [
+    "forwarded-identity",
+    "auth",
+    "invoke"
+  ],
+  "requires": [
+    "forwarded-identity",
+    "observable_action",
+    "ungranted_user_token"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "headers": {
+        "X-Trajectory-User": "Bearer {{ungranted_user_token}}"
+      },
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "expect": {
+        "status": 403,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "FORBIDDEN"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          },
+          {
+            "path": "$.error.details.user",
+            "present": true
+          }
+        ]
+      }
+    }
+  ]
+}

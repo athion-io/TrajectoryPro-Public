@@ -40,6 +40,31 @@ export const DEFECTS = Object.freeze([
   'break-chain', 'lying-readback', 'permit-self-approval',
 ]);
 
+/**
+ * Extensions the toy can be built with (`makeToy({extensions: [...]})`).
+ * A toy built without one behaves exactly as if the extension did not exist.
+ *   forwarded-identity  X-Trajectory-User: Bearer <user token> is checked on
+ *                       every authenticated route (agent-action CONTRACT §12)
+ */
+export const EXTENSIONS = Object.freeze(['forwarded-identity']);
+
+/**
+ * User tokens the forwarded-identity toy recognises. Clearly fake fixture
+ * values, never real credentials: tests hand them to the runner as
+ * `userTokens` the way CONTRACTS_USER_TOKEN / CONTRACTS_UNGRANTED_USER_TOKEN
+ * would. The toy keeps the token -> user map only to answer the check; no
+ * token is ever written to an instance or an event.
+ */
+export const TOY_USER_TOKENS = Object.freeze({
+  granted: 'toy-user-token-granted-fixture',
+  ungranted: 'toy-user-token-ungranted-fixture',
+});
+
+const TOY_USERS = Object.freeze({
+  [TOY_USER_TOKENS.granted]: { subject: 'user-granted', granted: true },
+  [TOY_USER_TOKENS.ungranted]: { subject: 'user-ungranted', granted: false },
+});
+
 /** Toy roles that the target file refers to. */
 export const TOY_ROLES = Object.freeze({
   environment_oid: 'env-c1',
@@ -98,14 +123,19 @@ const CORS_HEADERS = {
 };
 
 /**
- * @param {{apiKey?: string, defects?: Set<string>|string[], clock?: {now(): number}, eventIdBase?: number}} [opts]
+ * @param {{apiKey?: string, defects?: Set<string>|string[], clock?: {now(): number}, eventIdBase?: number, extensions?: string[]}} [opts]
  *   eventIdBase: id of the first SSE frame (default 0); tests use 1 to prove fixtures do not depend on it.
- * @returns {{fetch(url: string|URL, init?: RequestInit): Promise<Response>, tick(ms: number): Promise<void>, defects: Set<string>, state: object}}
+ *   extensions: names from EXTENSIONS the toy implements (default none).
+ * @returns {{fetch(url: string|URL, init?: RequestInit): Promise<Response>, tick(ms: number): Promise<void>, defects: Set<string>, extensions: Set<string>, userTokens: typeof TOY_USER_TOKENS, state: object}}
  */
-export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase = 0 } = {}) {
+export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase = 0, extensions = [] } = {}) {
   defects = defects instanceof Set ? defects : new Set(defects);
   for (const d of defects) {
     if (!DEFECTS.includes(d)) throw new Error(`makeToy: unknown defect '${d}' (known: ${DEFECTS.join(', ')})`);
+  }
+  extensions = new Set(extensions);
+  for (const e of extensions) {
+    if (!EXTENSIONS.includes(e)) throw new Error(`makeToy: unknown extension '${e}' (known: ${EXTENSIONS.join(', ')})`);
   }
   let virtualNow = clock ? clock.now() : 0;
   const now = () => (clock ? clock.now() : virtualNow);
@@ -428,6 +458,23 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
     return headers.get('x-api-key') === apiKey;
   }
 
+  /**
+   * forwarded-identity: when X-Trajectory-User is present the user token must
+   * be valid (401 USER_UNAUTHORIZED) and the user must hold the grant
+   * (403 FORBIDDEN). Both carry `details.user`; neither echoes the token, and
+   * the token is dropped as soon as the check is done. No header: a plain
+   * service call, as without the extension. The service key is checked first.
+   */
+  function checkForwardedIdentity(headers) {
+    const raw = headers.get('x-trajectory-user');
+    if (raw === null) return undefined;
+    const m = /^Bearer (\S+)$/.exec(raw);
+    const user = m ? TOY_USERS[m[1]] : undefined;
+    if (!user) return fail(401, 'USER_UNAUTHORIZED', 'missing or invalid user token', { user: { subject: null } });
+    if (!user.granted) return fail(403, 'FORBIDDEN', 'user has no grant for this action', { user: { subject: user.subject } });
+    return undefined;
+  }
+
   async function fetch(url, init = {}) {
     const u = new URL(String(url));
     const method = (init.method ?? 'GET').toUpperCase();
@@ -444,6 +491,10 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
     }
     const [, re, handler, { auth = true } = {}] = route;
     if (auth && !authorized(headers)) return fail(401, 'UNAUTHORIZED', 'missing or invalid API key');
+    if (auth && extensions.has('forwarded-identity')) {
+      const denied = checkForwardedIdentity(headers);
+      if (denied) return denied;
+    }
 
     let body;
     if (init.body !== undefined && init.body !== null) {
@@ -457,5 +508,5 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
     return handler({ url: u, method, headers, body, signal: init.signal }, params);
   }
 
-  return { fetch, tick, defects, state: { instances, buses } };
+  return { fetch, tick, defects, extensions, userTokens: TOY_USER_TOKENS, state: { instances, buses } };
 }

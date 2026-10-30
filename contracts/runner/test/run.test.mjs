@@ -403,6 +403,45 @@ describe('runSuite: redaction', () => {
   });
 });
 
+describe('runSuite: user tokens (forwarded-identity)', () => {
+  const userFixture = (token = '{{user_token}}') => fixture({
+    requires: ['user_token'],
+    steps: [{ kind: 'request', path: '/x', headers: { 'X-Trajectory-User': `Bearer ${token}` }, expect: { status: 202 } }],
+  });
+
+  test('{{user_token}} and {{ungranted_user_token}} are filled from userTokens and sent as given', async () => {
+    const fetch = stubFetch();
+    const f = fixture({
+      requires: ['user_token', 'ungranted_user_token'],
+      steps: [
+        { kind: 'request', path: '/a', headers: { 'X-Trajectory-User': 'Bearer {{user_token}}' }, expect: { status: 202 } },
+        { kind: 'request', path: '/b', headers: { 'X-Trajectory-User': 'Bearer {{ungranted_user_token}}' }, expect: { status: 202 } },
+      ],
+    });
+    const { result } = await run([f], { fetch, userTokens: { user_token: 'tok-granted', ungranted_user_token: 'tok-plain' } });
+    assert.equal(result.outcome, 'pass', result.reason);
+    assert.equal(fetch.calls[0].headers.get('x-trajectory-user'), 'Bearer tok-granted');
+    assert.equal(fetch.calls[1].headers.get('x-trajectory-user'), 'Bearer tok-plain');
+  });
+
+  test('a fixture that requires a user token the runner was not given skips, naming it', async () => {
+    const fetch = stubFetch();
+    const { result } = await run([userFixture()], { fetch });
+    assert.equal(result.outcome, 'skip');
+    assert.match(result.reason, /user_token/);
+    assert.equal(fetch.calls.length, 0);
+  });
+
+  test('a user token never reaches the report or the log', async () => {
+    const lines = [];
+    const fetch = stubFetch(() => ({ status: 403, body: { error: { code: 'FORBIDDEN', message: 'no', details: {} } } }));
+    const { report } = await run([userFixture()], { fetch, log: (l) => lines.push(l), userTokens: { user_token: 'tok-granted' } });
+    assert.equal(report.results[0].outcome, 'fail');
+    assert.doesNotMatch(JSON.stringify(report), /tok-granted/);
+    assert.doesNotMatch(lines.join('\n'), /tok-granted/);
+  });
+});
+
 describe('exitCode', () => {
   const report = (results) => ({ results });
 

@@ -49,10 +49,28 @@ const RUNNER_VERSION = JSON.parse(readFileSync(new URL('../package.json', import
  * @property {Result[]} results
  */
 
-/** Returns the first `requires` entry the target does not satisfy, or undefined. */
-function missingRequirement(fixture, target) {
+/**
+ * Secrets the operator hands the runner (never the target file) that a fixture
+ * may list in `requires` and use as `{{<name>}}`. Both serve the
+ * forwarded-identity extension (agent-action CONTRACT §12).
+ */
+export const USER_TOKEN_NAMES = Object.freeze(['user_token', 'ungranted_user_token']);
+
+/**
+ * Returns the first `requires` entry nothing satisfies, or undefined.
+ * `{missing, from}` tells whether the target or the runner is the one short.
+ */
+function missingRequirement(fixture, target, userTokens) {
   const have = new Set([...(target.capabilities ?? []), ...(target.extensions ?? []), ...Object.keys(target.roles ?? {})]);
-  return (fixture.requires ?? []).find((entry) => !have.has(entry));
+  for (const entry of fixture.requires ?? []) {
+    if (have.has(entry)) continue;
+    if (USER_TOKEN_NAMES.includes(entry)) {
+      if (typeof userTokens[entry] === 'string' && userTokens[entry] !== '') continue;
+      return { missing: entry, from: 'runner' };
+    }
+    return { missing: entry, from: 'target' };
+  }
+  return undefined;
 }
 
 /**
@@ -88,9 +106,12 @@ async function runFixture(fixture, ctx) {
   const { target } = ctx;
   const base = { test_id: fixture.test_id, level: fixture.level, evidence: [] };
 
-  const missing = missingRequirement(fixture, target);
+  const missing = missingRequirement(fixture, target, ctx.userTokens);
   if (missing !== undefined) {
-    return { ...base, outcome: 'skip', reason: `target does not provide "${missing}"` };
+    const reason = missing.from === 'runner'
+      ? `runner was not given "${missing.missing}"`
+      : `target does not provide "${missing.missing}"`;
+    return { ...base, outcome: 'skip', reason };
   }
   if ((fixture.tags ?? []).includes('live') && !target.live_vendor) {
     return { ...base, outcome: 'skip', reason: 'live fixture; target has no live_vendor' };
@@ -161,9 +182,15 @@ async function runFixture(fixture, ctx) {
  * @param {(line: string) => void} [options.log]
  * @param {string} [options.fixturesCommit]
  * @param {string} [options.auditFile]  audit trail path; carried on the context for audit-trail step kinds (later task)
+ * @param {Partial<Record<'user_token' | 'ungranted_user_token', string>>} [options.userTokens]
+ *   forwarded-identity user tokens; each becomes `{{<name>}}` and satisfies a `requires` entry of that name
  * @returns {Promise<Report>}
  */
-export async function runSuite({ fixtures, target, apiKey, fetch = globalThis.fetch, clock = systemClock, log = () => {}, fixturesCommit, auditFile }) {
+export async function runSuite({ fixtures, target, apiKey, fetch = globalThis.fetch, clock = systemClock, log = () => {}, fixturesCommit, auditFile, userTokens = {} }) {
+  const tokenVars = {};
+  for (const name of USER_TOKEN_NAMES) {
+    if (typeof userTokens[name] === 'string' && userTokens[name] !== '') tokenVars[name] = userTokens[name];
+  }
   const runToken = randomBytes(4).toString('hex');
   const report = {
     target: target.name,
@@ -179,8 +206,9 @@ export async function runSuite({ fixtures, target, apiKey, fetch = globalThis.fe
     counter += 1;
     const ctx = {
       target,
-      vars: { roles: target.roles ?? {}, uniq: `${runToken}-${counter}` },
+      vars: { roles: target.roles ?? {}, uniq: `${runToken}-${counter}`, ...tokenVars },
       apiKey,
+      userTokens: tokenVars,
       fetch,
       clock,
       log,

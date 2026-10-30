@@ -79,6 +79,7 @@ describe('agent-action fixtures vs clean toy', () => {
       'agt-030', 'agt-031', 'agt-032', 'agt-033', 'agt-034',
       'agt-040', 'agt-041', 'agt-050', 'agt-051',
       'agt-060', 'agt-061', 'agt-062',
+      'agt-070', 'agt-071', 'agt-072',
     ];
     for (const id of expected) assert.ok(ids.includes(id), `${id} present`);
   });
@@ -108,6 +109,15 @@ describe('agent-action fixtures vs clean toy', () => {
     for (const r of ext) {
       assert.equal(r.outcome, 'skip', `${r.test_id}: ${r.reason}`);
       assert.match(r.reason, /change-guard/);
+    }
+  });
+
+  test('forwarded-identity extension fixtures skip (toy target declares no extensions)', () => {
+    const ext = report.results.filter((r) => r.level === 'EXTENSION:forwarded-identity');
+    assert.deepEqual(ext.map((r) => r.test_id), ['agt-070', 'agt-071', 'agt-072']);
+    for (const r of ext) {
+      assert.equal(r.outcome, 'skip', `${r.test_id}: ${r.reason}`);
+      assert.match(r.reason, /forwarded-identity/);
     }
   });
 
@@ -208,4 +218,67 @@ describe('agent-action fixtures vs broken toys', () => {
       assert.equal(exitCode(report), 1);
     });
   }
+});
+
+describe('forwarded-identity fixtures (agt-070..072)', () => {
+  const FI_IDS = ['agt-070', 'agt-071', 'agt-072'];
+
+  /** A target like the toy's but declaring the extension; `extra` overrides fields (a door-like target drops it). */
+  async function fiTarget(extra = {}) {
+    const base = await loadTarget(TARGET);
+    return { ...base, extensions: ['forwarded-identity'], ...extra };
+  }
+
+  async function runFi({ toy: toyOpts = { extensions: ['forwarded-identity'] }, target, userTokens } = {}) {
+    const clock = drivingClock();
+    const toy = makeToy({ apiKey: 'k', clock, ...toyOpts });
+    clock.attach(toy);
+    const fixtures = (await loadFixtures(ROOT, { categories: ['agent-action'] })).filter((f) => FI_IDS.includes(f.test_id));
+    const tokens = userTokens ?? { user_token: toy.userTokens.granted, ungranted_user_token: toy.userTokens.ungranted };
+    const report = await runSuite({ fixtures, target: target ?? await fiTarget(), apiKey: 'k', fetch: toy.fetch, clock, fixturesCommit: 'test', userTokens: tokens });
+    return { report, r: byId(report), toy };
+  }
+
+  test('a toy with the extension passes all three', async () => {
+    const { report, r, toy } = await runFi();
+    assert.equal(describeFails(report), '');
+    for (const id of FI_IDS) assert.equal(r[id].outcome, 'pass', `${id}: ${r[id].outcome} ${r[id].reason}`);
+    assert.equal(r['agt-070'].evidence.at(-1).code, 'USER_UNAUTHORIZED');
+    assert.equal(r['agt-071'].evidence.at(-1).code, 'FORBIDDEN');
+    const text = JSON.stringify(report);
+    assert.doesNotMatch(text, new RegExp(toy.userTokens.granted), 'granted token never reaches the report');
+    assert.doesNotMatch(text, new RegExp(toy.userTokens.ungranted), 'ungranted token never reaches the report');
+  });
+
+  test('a target that does not declare the extension (door-like) skips all three without a request', async () => {
+    const calls = [];
+    const clock = drivingClock();
+    const toy = makeToy({ apiKey: 'k', clock, extensions: ['forwarded-identity'] });
+    clock.attach(toy);
+    const fetch = (url, init) => { calls.push(String(url)); return toy.fetch(url, init); };
+    const fixtures = (await loadFixtures(ROOT, { categories: ['agent-action'] })).filter((f) => FI_IDS.includes(f.test_id));
+    const target = await fiTarget({ name: 'door-like', extensions: [] });
+    const report = await runSuite({ fixtures, target, apiKey: 'k', fetch, clock, fixturesCommit: 'test', userTokens: { user_token: 'a', ungranted_user_token: 'b' } });
+    for (const r of report.results) {
+      assert.equal(r.outcome, 'skip', `${r.test_id}: ${r.outcome} ${r.reason}`);
+      assert.match(r.reason, /forwarded-identity/);
+    }
+    assert.equal(calls.length, 0);
+  });
+
+  test('a target that declares the extension but no user tokens were given: token fixtures skip, naming the token', async () => {
+    const { r } = await runFi({ userTokens: {} });
+    // agt-070 sends a literal fake token, so it needs nothing from the runner.
+    assert.equal(r['agt-070'].outcome, 'pass', `agt-070: ${r['agt-070'].outcome} ${r['agt-070'].reason}`);
+    for (const id of ['agt-071', 'agt-072']) assert.equal(r[id].outcome, 'skip', `${id}: ${r[id].outcome} ${r[id].reason}`);
+    assert.match(r['agt-071'].reason, /runner was not given "ungranted_user_token"/);
+    assert.match(r['agt-072'].reason, /runner was not given "user_token"/);
+  });
+
+  test('a toy without the extension does not pass them (it ignores the header)', async () => {
+    const { r } = await runFi({ toy: {} });
+    assert.equal(r['agt-070'].outcome, 'fail');
+    assert.equal(r['agt-071'].outcome, 'fail');
+    assert.equal(r['agt-072'].outcome, 'pass');
+  });
 });

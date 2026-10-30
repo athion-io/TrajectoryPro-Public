@@ -256,3 +256,83 @@ describe('toy container smoke', () => {
     assert.equal(r.json.data.accepted, true);
   });
 });
+
+describe('toy container: forwarded-identity extension', () => {
+  const FI = { extensions: ['forwarded-identity'] };
+
+  async function callAs(t, userHeader, method = 'POST', path = INVOKE, body = invokeBody()) {
+    const init = { method, headers: { 'x-api-key': 'k', accept: 'application/json', 'content-type': 'application/json' } };
+    if (userHeader !== undefined) init.headers['x-trajectory-user'] = userHeader;
+    if (body !== undefined) init.body = JSON.stringify(body);
+    const res = await t.fetch(BASE + path, init);
+    return { status: res.status, json: await res.json() };
+  }
+
+  test('unknown extension name throws; the known one is accepted', () => {
+    assert.throws(() => makeToy({ extensions: ['no-such-extension'] }), /no-such-extension/);
+    assert.doesNotThrow(() => makeToy(FI));
+  });
+
+  test('a toy without the extension ignores X-Trajectory-User entirely', async () => {
+    const t = toy();
+    const r = await callAs(t, 'Bearer invalid-user-token-fixture');
+    assert.equal(r.status, 201);
+    assert.ok(r.json.data.instance_id);
+  });
+
+  test('an invalid user token is 401 USER_UNAUTHORIZED with details.user', async () => {
+    const t = toy(FI);
+    const r = await callAs(t, 'Bearer invalid-user-token-fixture');
+    assert.equal(r.status, 401);
+    assert.equal(r.json.error.code, 'USER_UNAUTHORIZED');
+    assert.equal(typeof r.json.error.message, 'string');
+    assert.ok('user' in r.json.error.details, 'details.user present');
+    assert.doesNotMatch(JSON.stringify(r.json), /invalid-user-token-fixture/, 'the token is not echoed');
+  });
+
+  test('a malformed header (no Bearer scheme) is also 401 USER_UNAUTHORIZED', async () => {
+    const t = toy(FI);
+    const r = await callAs(t, t.userTokens.granted);
+    assert.equal(r.status, 401);
+    assert.equal(r.json.error.code, 'USER_UNAUTHORIZED');
+  });
+
+  test('a valid user without the grant is 403 FORBIDDEN with details.user', async () => {
+    const t = toy(FI);
+    const r = await callAs(t, `Bearer ${t.userTokens.ungranted}`);
+    assert.equal(r.status, 403);
+    assert.equal(r.json.error.code, 'FORBIDDEN');
+    assert.equal(typeof r.json.error.message, 'string');
+    assert.ok('user' in r.json.error.details, 'details.user present');
+    assert.doesNotMatch(JSON.stringify(r.json), new RegExp(t.userTokens.ungranted), 'the token is not echoed');
+  });
+
+  test('a granted user invokes normally and the instance is attributed to the user, not the token', async () => {
+    const t = toy(FI);
+    const r = await callAs(t, `Bearer ${t.userTokens.granted}`);
+    assert.equal(r.status, 201);
+    const id = r.json.data.instance_id;
+    const inst = t.state.instances.get(id);
+    assert.ok(inst, 'instance stored');
+    assert.doesNotMatch(JSON.stringify([...t.state.instances.values()]), new RegExp(t.userTokens.granted), 'the toy never stores the token');
+  });
+
+  test('without the header, a service-only call still works and health needs no user', async () => {
+    const t = toy(FI);
+    const r = await callAs(t, undefined);
+    assert.equal(r.status, 201);
+    const h = await callAs(t, 'Bearer invalid-user-token-fixture', 'GET', '/health', undefined);
+    assert.equal(h.status, 200);
+  });
+
+  test('the user check runs after the service key check: a bad key is still 401 UNAUTHORIZED', async () => {
+    const t = toy(FI);
+    const res = await t.fetch(BASE + INVOKE, {
+      method: 'POST',
+      headers: { 'x-api-key': 'wrong', 'x-trajectory-user': 'Bearer invalid-user-token-fixture', 'content-type': 'application/json' },
+      body: JSON.stringify(invokeBody()),
+    });
+    assert.equal(res.status, 401);
+    assert.equal((await res.json()).error.code, 'UNAUTHORIZED');
+  });
+});

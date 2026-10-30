@@ -128,6 +128,13 @@ describe('redact', () => {
     assert.deepEqual(out, { 'x-api-key': '***', vary: 'Origin' });
   });
 
+  test('masks X-Trajectory-User (forwarded-identity user token) whatever its case', () => {
+    const out = redact({ 'X-Trajectory-User': 'Bearer user-secret', 'x-trajectory-user': 'Bearer user-secret' });
+    assert.deepEqual(out, { 'X-Trajectory-User': '***', 'x-trajectory-user': '***' });
+    assert.equal(redactValue('x-trajectory-user', 'Bearer user-secret'), '***');
+    assert.equal(redactValue('X-TRAJECTORY-USER', 'Bearer user-secret'), '***');
+  });
+
   test('masks token= inside any header value', () => {
     const out = redact({ Location: 'http://stub.test/stream?token=abc123&x=1' });
     assert.equal(out.Location, 'http://stub.test/stream?token=***&x=1');

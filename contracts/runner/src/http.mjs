@@ -17,7 +17,8 @@
 
 const PLACEHOLDER = /\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g;
 const WHOLE_PLACEHOLDER = /^\{\{\s*([A-Za-z0-9_.]+)\s*\}\}$/;
-const SECRET_HEADERS = new Set(['x-api-key', 'authorization']);
+// x-trajectory-user carries the forwarded-identity user token (agent-action CONTRACT §12).
+const SECRET_HEADERS = new Set(['x-api-key', 'authorization', 'x-trajectory-user']);
 const TOKEN_QUERY = /([?&]token=)[^&\s]*/gi;
 const DEFAULT_AUTH_HEADER = 'X-API-Key';
 
