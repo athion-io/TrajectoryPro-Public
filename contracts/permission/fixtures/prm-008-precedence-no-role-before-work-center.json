@@ -1,0 +1,54 @@
+{
+  "test_id": "prm-008",
+  "name": "Precedence: a subject with no role in the wrong work center is denied with NO_ROLE, not WRONG_WORK_CENTER",
+  "category": "permission",
+  "level": "MUST",
+  "source": "C-PRM-1",
+  "tags": [
+    "precedence",
+    "role",
+    "work-center"
+  ],
+  "requires": [
+    "permission_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/permission/decide",
+      "probe": true,
+      "body": {
+        "subject": {
+          "kind": "user",
+          "id": "u1",
+          "roles": [],
+          "work_center": "wc-b"
+        },
+        "verb": "view",
+        "resource": {
+          "work_center": "wc-a",
+          "workflow_instance": "wi-1"
+        },
+        "grants": []
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.allowed",
+            "equals": false
+          },
+          {
+            "path": "$.data.reason",
+            "equals": "NO_ROLE"
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

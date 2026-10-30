@@ -1,0 +1,55 @@
+{
+  "test_id": "prm-016",
+  "name": "A request with an unknown verb is rejected with 400 VALIDATION_ERROR, not decided",
+  "category": "permission",
+  "level": "MUST",
+  "source": "C-PRM-5",
+  "tags": [
+    "validation",
+    "envelope"
+  ],
+  "requires": [
+    "permission_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/permission/decide",
+      "probe": true,
+      "body": {
+        "subject": {
+          "kind": "user",
+          "id": "u1",
+          "roles": [
+            "operator"
+          ],
+          "work_center": "wc-a"
+        },
+        "verb": "delete",
+        "resource": {
+          "work_center": "wc-a",
+          "workflow_instance": "wi-1"
+        },
+        "grants": []
+      },
+      "expect": {
+        "status": 400,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "VALIDATION_ERROR"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          },
+          {
+            "path": "$.data",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

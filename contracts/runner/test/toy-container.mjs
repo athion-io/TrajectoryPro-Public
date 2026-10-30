@@ -29,10 +29,12 @@
 //   break-chain            audit trail exported by /conformance/v1/audit/export has a
 //                          broken prev_hash link at index 2 (audit-trail aud-010)
 //   lying-readback         permission read-back differs from what was granted (later task)
-//   permit-self-approval   approver may equal requester (later task)
-// The /conformance/v1/* probe surface (PROBE_ROUTES) carries the audit probe;
-// later tasks add permission and connector probes there. Add routes to ROUTES
-// or PROBE_ROUTES and consult `defects.has(...)` at the point of failure.
+//   permit-self-approval   the change author's own signature counts towards the
+//                          quorum (permission prm-014, C-PRM-4)
+// The /conformance/v1/* probe surface (PROBE_ROUTES) carries the audit and
+// permission probes; a later task adds the connector probe there. Add routes
+// to ROUTES or PROBE_ROUTES and consult `defects.has(...)` at the point of
+// failure.
 
 import { canonicalize, sha256Digest } from '../src/jcs.mjs';
 import { eventHash, verifyChain } from '../src/audit.mjs';
@@ -92,6 +94,127 @@ const ACTIONS = {
 };
 
 export const COMMANDS = ['PAUSE', 'RESUME', 'HOLD', 'UNHOLD', 'ABORT', 'STOP', 'CLEAR'];
+
+// ---------- permission decision (permission CONTRACT, C-PRM-1..5) ----------
+
+/** The closed reason-code set of permission/CONTRACT.md §2. */
+export const PERMISSION_REASONS = Object.freeze([
+  'OK', 'NO_ROLE', 'WRONG_WORK_CENTER', 'GRANT_SCOPE_OWN', 'NOT_OWNER',
+  'AGENT_MODE_EXCEEDED', 'QUORUM_NOT_MET', 'SELF_APPROVAL', 'SAME_PERSON_TWICE',
+]);
+
+const PRM_VERBS = ['start', 'control:abort', 'control:stop', 'control:suspend', 'view', 'invoke_action', 'approve_change'];
+const PRM_MODES = ['observe', 'test', 'configure'];
+const PRM_SCOPES = ['own', 'any'];
+
+/** permission/CONTRACT.md §1.2: which held role authorises which verb. */
+const PRM_ROLE_VERBS = {
+  viewer: ['view'],
+  operator: ['view', 'start', 'control:abort', 'control:stop', 'control:suspend', 'invoke_action'],
+  commander: ['view', 'start', 'control:abort', 'control:stop', 'control:suspend', 'invoke_action'],
+  agent: ['view', 'invoke_action'],
+};
+
+class PermissionRequestError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'PermissionRequestError';
+  }
+}
+
+/** Validates the decide request shape (CONTRACT §1.1). Throws PermissionRequestError. */
+function checkPermissionRequest(req) {
+  const bad = (m) => { throw new PermissionRequestError(m); };
+  const isStr = (v) => typeof v === 'string' && v.length > 0;
+  if (!req || typeof req !== 'object' || Array.isArray(req)) bad('request must be a JSON object');
+  const { subject, verb, resource, grants, policy } = req;
+  if (!subject || typeof subject !== 'object') bad('subject must be an object');
+  if (!['user', 'agent'].includes(subject.kind)) bad('subject.kind must be user or agent');
+  if (!isStr(subject.id)) bad('subject.id must be a non-empty string');
+  if (!Array.isArray(subject.roles) || !subject.roles.every(isStr)) bad('subject.roles must be an array of strings');
+  if (!isStr(subject.work_center)) bad('subject.work_center must be a non-empty string');
+  if (subject.kind === 'agent' && !PRM_MODES.includes(subject.mode)) bad('subject.mode must be observe, test or configure for an agent');
+  if (!PRM_VERBS.includes(verb)) bad(`verb must be one of ${PRM_VERBS.join(', ')}`);
+  if (!resource || typeof resource !== 'object') bad('resource must be an object');
+  if (!isStr(resource.work_center)) bad('resource.work_center must be a non-empty string');
+  if ('owner' in resource && !isStr(resource.owner)) bad('resource.owner must be a non-empty string');
+  if ('action_mode' in resource && !PRM_MODES.includes(resource.action_mode)) bad('resource.action_mode must be observe, test or configure');
+  if (verb === 'invoke_action' && !('action_mode' in resource)) bad('resource.action_mode is required for invoke_action');
+  if (grants !== undefined) {
+    if (!Array.isArray(grants)) bad('grants must be an array');
+    for (const g of grants) {
+      if (!g || typeof g !== 'object' || !isStr(g.from_work_center) || !isStr(g.to_work_center) || !PRM_SCOPES.includes(g.scope)) {
+        bad('each grant must be {from_work_center, to_work_center, scope: own|any}');
+      }
+    }
+  }
+  if (verb === 'approve_change') {
+    const change = resource.change;
+    if (!change || typeof change !== 'object') bad('resource.change is required for approve_change');
+    if (!isStr(change.author)) bad('resource.change.author must be a non-empty string');
+    if (!Array.isArray(change.approvals) || !change.approvals.every((a) => a && typeof a === 'object' && isStr(a.by) && isStr(a.role))) {
+      bad('resource.change.approvals must be an array of {by, role}');
+    }
+    if (!policy || typeof policy !== 'object') bad('policy is required for approve_change');
+    if (!Array.isArray(policy.quorum) || policy.quorum.length === 0 || !policy.quorum.every((q) => q && typeof q === 'object' && isStr(q.role))) {
+      bad('policy.quorum must be a non-empty array of {role}');
+    }
+    if (policy.separation_of_duties !== 'strict') bad('policy.separation_of_duties must be "strict"');
+  }
+}
+
+/**
+ * The permission decision: a pure function of the request (C-PRM-5). Reads
+ * nothing but `req`, writes nothing, and returns {allowed, reason} with
+ * `reason` from PERMISSION_REASONS, in the precedence order of CONTRACT §2.3.
+ * `options.permitSelfApproval` is the permit-self-approval defect switch.
+ * Throws PermissionRequestError on a malformed request.
+ */
+export function decidePermission(req, { permitSelfApproval = false } = {}) {
+  checkPermissionRequest(req);
+  const { subject, verb, resource, grants = [], policy } = req;
+  const deny = (reason) => ({ allowed: false, reason });
+  const isControl = verb.startsWith('control:');
+
+  // C-PRM-1: a held role must authorise the verb; for approve_change the
+  // role must be one the quorum names.
+  const verbRoles = verb === 'approve_change'
+    ? policy.quorum.map((q) => q.role)
+    : Object.keys(PRM_ROLE_VERBS).filter((r) => PRM_ROLE_VERBS[r].includes(verb));
+  if (!subject.roles.some((r) => verbRoles.includes(r))) return deny('NO_ROLE');
+
+  // C-PRM-2: work center, then grant scope, then ownership.
+  if (subject.work_center !== resource.work_center) {
+    const grantable = verb === 'start' || isControl;
+    const grant = grantable
+      ? grants.find((g) => g.from_work_center === subject.work_center && g.to_work_center === resource.work_center)
+      : undefined;
+    if (!grant) return deny('WRONG_WORK_CENTER');
+    if (grant.scope === 'own' && isControl && resource.owner !== subject.id) return deny('GRANT_SCOPE_OWN');
+  } else if (isControl && resource.owner !== subject.id && !subject.roles.includes('commander')) {
+    return deny('NOT_OWNER');
+  }
+
+  // C-PRM-3: an agent never exceeds the action's mode.
+  if (subject.kind === 'agent' && verb === 'invoke_action'
+    && PRM_MODES.indexOf(resource.action_mode) > PRM_MODES.indexOf(subject.mode)) {
+    return deny('AGENT_MODE_EXCEEDED');
+  }
+
+  // C-PRM-4: self-approval, then the same person twice, then the quorum.
+  if (verb === 'approve_change') {
+    const { author, approvals } = resource.change;
+    if (!permitSelfApproval && (subject.id === author || approvals.some((a) => a.by === author))) return deny('SELF_APPROVAL');
+    const people = approvals.map((a) => a.by);
+    if (new Set(people).size !== people.length) return deny('SAME_PERSON_TWICE');
+    const counted = permitSelfApproval ? approvals : approvals.filter((a) => a.by !== author);
+    for (const { role } of policy.quorum) {
+      if (!counted.some((a) => a.role === role)) return deny('QUORUM_NOT_MET');
+    }
+  }
+
+  return { allowed: true, reason: 'OK' };
+}
 
 /** Ticks act-fast spends in COMPLETING before COMPLETED. */
 export const FAST_COMPLETING_TICKS = 300;
@@ -528,9 +651,24 @@ export function makeToy({ apiKey = 'k', defects = new Set(), clock, eventIdBase 
     return new Response(lines, { status: 200, headers: { 'content-type': 'application/x-ndjson', ...CORS_HEADERS } });
   }
 
+  /**
+   * POST /permission/decide {subject, verb, resource, grants, policy}
+   * -> {data: {allowed, reason}}. Test-only probe (C-PRM-5): the toy exists
+   * only to be tested, so it is the one place this surface is fine.
+   */
+  function handlePermissionDecide({ body }) {
+    try {
+      return ok(200, decidePermission(body, { permitSelfApproval: defects.has('permit-self-approval') }));
+    } catch (err) {
+      if (err instanceof PermissionRequestError) return fail(400, 'VALIDATION_ERROR', err.message);
+      throw err;
+    }
+  }
+
   const PROBE_ROUTES = [
     ['POST', /^\/audit\/verify$/, handleAuditVerify],
     ['GET', /^\/audit\/export$/, handleAuditExport],
+    ['POST', /^\/permission\/decide$/, handlePermissionDecide],
   ];
 
   function authorized(headers) {

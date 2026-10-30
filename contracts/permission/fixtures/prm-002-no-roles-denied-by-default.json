@@ -1,0 +1,53 @@
+{
+  "test_id": "prm-002",
+  "name": "A subject holding no role is denied by default with NO_ROLE",
+  "category": "permission",
+  "level": "MUST",
+  "source": "C-PRM-1",
+  "tags": [
+    "role",
+    "deny-default"
+  ],
+  "requires": [
+    "permission_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/permission/decide",
+      "probe": true,
+      "body": {
+        "subject": {
+          "kind": "user",
+          "id": "u1",
+          "roles": [],
+          "work_center": "wc-a"
+        },
+        "verb": "start",
+        "resource": {
+          "work_center": "wc-a",
+          "workflow_instance": "wi-1"
+        },
+        "grants": []
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.allowed",
+            "equals": false
+          },
+          {
+            "path": "$.data.reason",
+            "equals": "NO_ROLE"
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

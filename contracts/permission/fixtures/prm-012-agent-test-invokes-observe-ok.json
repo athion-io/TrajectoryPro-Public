@@ -1,0 +1,57 @@
+{
+  "test_id": "prm-012",
+  "name": "A test-mode agent invoking an observe-mode action is allowed",
+  "category": "permission",
+  "level": "MUST",
+  "source": "C-PRM-3",
+  "tags": [
+    "agent",
+    "mode"
+  ],
+  "requires": [
+    "permission_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/permission/decide",
+      "probe": true,
+      "body": {
+        "subject": {
+          "kind": "agent",
+          "id": "agent-1",
+          "roles": [
+            "agent"
+          ],
+          "work_center": "wc-a",
+          "mode": "test"
+        },
+        "verb": "invoke_action",
+        "resource": {
+          "work_center": "wc-a",
+          "workflow_instance": "wi-1",
+          "action_mode": "observe"
+        },
+        "grants": []
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.allowed",
+            "equals": true
+          },
+          {
+            "path": "$.data.reason",
+            "equals": "OK"
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

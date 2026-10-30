@@ -1,0 +1,63 @@
+{
+  "test_id": "prm-007",
+  "name": "Grant matrix: scope any, subject does not own the instance, control is allowed",
+  "category": "permission",
+  "level": "MUST",
+  "source": "C-PRM-2",
+  "tags": [
+    "work-center",
+    "grant",
+    "matrix"
+  ],
+  "requires": [
+    "permission_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/permission/decide",
+      "probe": true,
+      "body": {
+        "subject": {
+          "kind": "user",
+          "id": "u1",
+          "roles": [
+            "operator"
+          ],
+          "work_center": "wc-b"
+        },
+        "verb": "control:suspend",
+        "resource": {
+          "work_center": "wc-a",
+          "workflow_instance": "wi-1",
+          "owner": "u2"
+        },
+        "grants": [
+          {
+            "from_work_center": "wc-b",
+            "to_work_center": "wc-a",
+            "scope": "any"
+          }
+        ]
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.allowed",
+            "equals": true
+          },
+          {
+            "path": "$.data.reason",
+            "equals": "OK"
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}
