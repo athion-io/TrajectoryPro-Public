@@ -3,7 +3,7 @@
   "name": "toy",
   "base_url": "http://toy.test/trajectory/v1",
   "auth": { "mode": "required", "header": "X-API-Key", "scheme": "" },
-  "capabilities": ["observable_action", "opaque_action", "commands", "sse", "list", "delete", "cors"],
+  "capabilities": ["observable_action", "opaque_action", "commands", "sse", "list", "delete", "cors", "outbound_only"],
   "extensions": [],
   "roles": {
     "environment_oid": "env-c1",

@@ -10,6 +10,7 @@
     "retry"
   ],
   "requires": [
+    "outbound_only",
     "observable_action"
   ],
   "setup": [

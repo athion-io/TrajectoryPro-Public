@@ -51,13 +51,26 @@ function drivingClock(start = 1_000) {
   };
 }
 
-async function runAll({ defects = [], target: targetOverride } = {}) {
+async function runAll({ defects = [], target: targetOverride, wrapFetch = (f) => f } = {}) {
   const clock = drivingClock();
   const toy = makeToy({ apiKey: 'k', defects, clock });
   clock.attach(toy);
   const fixtures = await loadFixtures(ROOT, { categories: ['agent-action'] });
   const target = targetOverride ?? await loadTarget(TARGET);
-  return runSuite({ fixtures, target, apiKey: 'k', fetch: toy.fetch, clock, fixturesCommit: 'test' });
+  return runSuite({ fixtures, target, apiKey: 'k', fetch: wrapFetch(toy.fetch), clock, fixturesCommit: 'test' });
+}
+
+/** A fetch that answers the offline action's invoke with a fixed error instead of asking the toy. */
+function offlineInvokeAnswers(status, code) {
+  return (realFetch) => async (url, init) => {
+    if (String(url).includes('/actions/act-offline/invoke')) {
+      return new Response(JSON.stringify({ error: { code, message: 'fake' } }), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    return realFetch(url, init);
+  };
 }
 
 const byId = (report) => Object.fromEntries(report.results.map((r) => [r.test_id, r]));
@@ -114,6 +127,62 @@ describe('rly fixtures vs clean toy', () => {
     for (const f of fixtures.filter((x) => x.test_id === 'rly-002' || x.test_id === 'rly-003')) {
       assert.ok(!JSON.stringify(f).includes('idempotent'), `${f.test_id} does not mention idempotent`);
     }
+  });
+});
+
+describe('rly-001..003 run only against doors', () => {
+  test('rly-001..003 require the outbound_only capability', async () => {
+    const fixtures = await loadFixtures(ROOT, { categories: ['agent-action'] });
+    for (const f of fixtures.filter((x) => ['rly-001', 'rly-002', 'rly-003'].includes(x.test_id))) {
+      assert.ok(f.requires.includes('outbound_only'), `${f.test_id} requires outbound_only`);
+    }
+  });
+
+  test('a target without outbound_only skips rly-001..003 and still notes rly-004', async () => {
+    const target = await loadTarget(TARGET);
+    target.capabilities = target.capabilities.filter((c) => c !== 'outbound_only');
+    const r = byId(await runAll({ target }));
+    for (const id of ['rly-001', 'rly-002', 'rly-003']) {
+      assert.equal(r[id].outcome, 'skip', `${id}: ${r[id].reason}`);
+      assert.match(r[id].reason, /outbound_only/);
+    }
+    assert.equal(r['rly-004'].outcome, 'note');
+  });
+});
+
+describe('rly-001 against doors that answer differently', () => {
+  test('409 with a code other than AGENT_UNAVAILABLE fails', async () => {
+    const r = byId(await runAll({ wrapFetch: offlineInvokeAnswers(409, 'SERVICE_UNAVAILABLE') }))['rly-001'];
+    assert.equal(r.outcome, 'fail', r.reason);
+    assert.match(r.reason, /AGENT_UNAVAILABLE/);
+  });
+
+  test('503 is a note whatever the code says', async () => {
+    const r = byId(await runAll({ wrapFetch: offlineInvokeAnswers(503, 'SERVICE_UNAVAILABLE') }))['rly-001'];
+    assert.equal(r.outcome, 'note', r.reason);
+    assert.match(r.reason, /503/);
+  });
+
+  test('201 (the door accepted and will hang) fails', async () => {
+    const wrap = (realFetch) => async (url, init) => {
+      if (String(url).includes('/actions/act-offline/invoke')) {
+        return new Response(JSON.stringify({ data: { instance_id: 'hang-1', state: 'RECEIVED' } }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return realFetch(url, init);
+    };
+    const r = byId(await runAll({ wrapFetch: wrap }))['rly-001'];
+    assert.equal(r.outcome, 'fail', r.reason);
+  });
+});
+
+describe('rly fixtures vs the bad-envelope toy', () => {
+  test('rly-002 and rly-003 read the invoke envelope, so neither passes', async () => {
+    const r = byId(await runAll({ defects: ['bad-envelope'] }));
+    assert.notEqual(r['rly-002'].outcome, 'pass');
+    assert.notEqual(r['rly-003'].outcome, 'pass');
   });
 });
 

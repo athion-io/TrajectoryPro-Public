@@ -41,7 +41,7 @@
     },
     "attests": {
       "type": "string",
-      "description": "A clause id (for example \"C-RLY-4\") that cannot be observed over HTTP. The runner does not run the fixture's steps (keep steps empty): when the target's attestations map has the clause set to true the result is note with reason \"attested: <clause> ...\"; otherwise it is skip. Never a pass."
+      "description": "A clause id (for example \"C-RLY-4\") that cannot be observed over HTTP. The runner does not run the fixture's steps (the linter requires steps to be empty and no setup or teardown): when the target's attestations map has the clause set to true the result is note with reason \"attested: <clause> ...\"; otherwise it is skip. Never a pass."
     },
     "setup": {
       "type": "array",
@@ -51,7 +51,7 @@
     "steps": {
       "type": "array",
       "items": { "$ref": "#/$defs/step" },
-      "description": "The checked steps. Each step's expect block is graded at the fixture's level."
+      "description": "The checked steps. Each step's expect block is graded at the fixture's level. Must not be empty unless attests is set."
     },
     "expected": {
       "type": "object",
@@ -145,6 +145,11 @@
                 "description": "Keeps only the elements reached by path whose relative where.path yields exactly where.equals. Applied before select and the operators."
               },
               "select": { "type": "string", "description": "JSONPath relative to each (kept) element; the operators then grade what it reaches." },
+              "when_status": {
+                "type": "array",
+                "items": { "type": "integer" },
+                "description": "Grade this item only when the response status is one of these; any other status passes the item. Lets a body detail be pinned on the MUST status while a note_if status stays free."
+              },
               "present": { "type": "boolean" },
               "absent": { "type": "boolean" },
               "equals": {},

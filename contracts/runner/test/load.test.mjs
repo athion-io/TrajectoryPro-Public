@@ -184,6 +184,68 @@ describe('lintFixture', () => {
     assert.equal(problems.length, 1);
     assert.match(problems[0], /agt-001-invoke\.json/);
   });
+
+  test('a fixture with no steps and no attests is one problem: it would pass from nothing', () => {
+    const f = validFixture();
+    f.steps = [];
+    const problems = lintFixture(f, 'agt-001-invoke.json');
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /agt-001-invoke\.json/);
+    assert.match(problems[0], /steps/);
+  });
+
+  test('steps that is not an array is one problem', () => {
+    const f = validFixture();
+    f.steps = { kind: 'request' };
+    const problems = lintFixture(f, 'agt-001-invoke.json');
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /steps/);
+  });
+
+  test('an attestation fixture has empty steps and no setup or teardown', () => {
+    const f = validFixture();
+    f.test_id = 'rly-004';
+    f.source = 'C-RLY-4';
+    f.attests = 'C-RLY-4';
+    f.requires = [];
+    f.steps = [];
+    delete f.setup;
+    assert.deepEqual(lintFixture(f, 'rly-004-no-inbound.json'), []);
+  });
+
+  test('an attestation fixture with steps is one problem', () => {
+    const f = validFixture();
+    f.test_id = 'rly-004';
+    f.attests = 'C-RLY-4';
+    delete f.setup;
+    const problems = lintFixture(f, 'rly-004-no-inbound.json');
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /attests/);
+    assert.match(problems[0], /steps/);
+  });
+
+  test('an attestation fixture with setup or teardown is one problem each', () => {
+    const f = validFixture();
+    f.test_id = 'rly-004';
+    f.attests = 'C-RLY-4';
+    f.requires = [];
+    f.steps = [];
+    f.teardown = [];
+    const problems = lintFixture(f, 'rly-004-no-inbound.json');
+    assert.equal(problems.length, 2);
+    assert.match(problems[0], /setup/);
+    assert.match(problems[1], /teardown/);
+  });
+
+  test('attests that is not a string is one problem', () => {
+    const f = validFixture();
+    f.attests = 4;
+    f.steps = [];
+    delete f.setup;
+    const problems = lintFixture(f, 'agt-001-invoke.json');
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /attests/);
+  });
 });
 
 describe('loadFixtures', () => {

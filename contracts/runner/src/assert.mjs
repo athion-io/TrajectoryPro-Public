@@ -127,10 +127,19 @@ function describePath(item) {
   return text;
 }
 
-/** @returns {CheckResult} */
-function checkJsonItem(item, json) {
+/**
+ * Grades one json item. `when_status: [codes]` limits the item to responses
+ * with one of those statuses; for any other status it is a pass, so a fixture
+ * can pin a body detail on its MUST status while a `note_if` status stays free.
+ * @returns {CheckResult}
+ */
+function checkJsonItem(item, json, status) {
   const ops = JSON_OPERATORS.filter((op) => op in item);
   if (ops.length === 0) throw new Error(`json check at ${item.path} has no operator (${JSON_OPERATORS.join(', ')})`);
+  if ('when_status' in item) {
+    if (!Array.isArray(item.when_status)) throw new Error(`json check at ${item.path} has a when_status that is not an array`);
+    if (!item.when_status.includes(status)) return pass();
+  }
   if (json === undefined) return fail(`${item.path}: body is not JSON`);
   const matches = selectMatches(item, jsonPath(json, item.path));
   const at = (text) => fail(`${describePath(item)}: ${text}`);
@@ -219,7 +228,7 @@ export function check(expect, response) {
   const results = [];
   if (!expect) return pass();
   if ('status' in expect) results.push(checkStatus(expect.status, response.status));
-  for (const item of expect.json ?? []) results.push(checkJsonItem(item, response.json));
+  for (const item of expect.json ?? []) results.push(checkJsonItem(item, response.json, response.status));
   for (const [name, rule] of Object.entries(expect.headers ?? {})) results.push(checkHeader(name, rule, response.headers));
 
   const fails = results.filter((r) => r.outcome === 'fail');

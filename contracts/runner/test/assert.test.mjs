@@ -171,6 +171,17 @@ describe('check: json', () => {
     bad({ path: '$.data.missing', not_equals: 'x' });
   });
 
+  test('when_status grades the item only for the listed statuses', () => {
+    const item = { path: '$.data.state', equals: 'HELD', when_status: [409] };
+    assert.equal(check({ json: [item] }, response(409)).outcome, 'fail');
+    assert.equal(check({ json: [item] }, response(503)).outcome, 'pass');
+    assert.equal(check({ json: [item] }, response(200)).outcome, 'pass');
+    const held = { path: '$.data.state', equals: 'EXECUTING', when_status: [409, 200] };
+    assert.equal(check({ json: [held] }, response(200)).outcome, 'pass');
+    // A skipped item still needs an operator, so a typo cannot hide behind when_status.
+    assert.throws(() => check({ json: [{ path: '$.x', when_status: [409] }] }, response(503)), /operator/);
+  });
+
   test('type', () => {
     assert.equal(ok({ path: '$.data.state', type: 'string' }).outcome, 'pass');
     assert.equal(ok({ path: '$.data.count', type: 'number' }).outcome, 'pass');

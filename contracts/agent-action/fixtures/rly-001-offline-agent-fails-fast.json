@@ -10,6 +10,7 @@
     "offline"
   ],
   "requires": [
+    "outbound_only",
     "offline_action"
   ],
   "steps": [
@@ -36,6 +37,13 @@
           }
         },
         "json": [
+          {
+            "path": "$.error.code",
+            "equals": "AGENT_UNAVAILABLE",
+            "when_status": [
+              409
+            ]
+          },
           {
             "path": "$.error.code",
             "type": "string"

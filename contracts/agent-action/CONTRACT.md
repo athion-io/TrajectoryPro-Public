@@ -285,12 +285,17 @@ An action server may be a **door**: the HTTP surface of §§2–10 runs where th
 Runtime can reach it, and the agent that does the work dials *out* to the
 door and is never called inbound. The Runtime cannot tell a door from a
 directly hosted action server, and must not need to: **a door MUST pass every
-`agt-*` fixture.** The clauses below add what a relay changes.
+`agt-*` fixture.** The clauses below add what a relay changes. A target
+declares that it is a door with the capability `outbound_only` (it implies no
+roles); the observed `rly-*` fixtures (rly-001..003) run only against targets
+declaring it and skip otherwise. rly-004 is graded by attestation alone.
 
 **C-RLY-1. Fail fast when the agent is away.** An invoke of an action whose
-agent is not connected answers `409 AGENT_UNAVAILABLE`. It MUST NOT answer
+agent is not connected answers `409` with `$.error.code` equal to
+`AGENT_UNAVAILABLE`; a `409` carrying any other code fails. It MUST NOT answer
 `201` and leave the instance to hang. A door that answers `503` instead is
-recorded as a `note`, not a failure.
+recorded as a `note`, not a failure; on the `503` path the error code is only
+required to be a string (`SERVICE_UNAVAILABLE` is the conventional value).
 
 **C-RLY-2. Retried dispatch does not start work twice.** A relay retries, so
 an invoke SHOULD be idempotent on
@@ -302,11 +307,13 @@ hex digits of sha256(`env|wf|step|action`); the format is IMPL-DEFINED and
 only "same id" / "different id" is checked. For a server that is not a door
 this is agt-015's D9 choice; a door is held to the SHOULD.
 
-**C-RLY-3. Reported state lags the agent by at most `poll_interval_s` × 3**
-(the door's declared polling interval). This is checked as "the `wait_state`
-after a command succeeds within the timeout": the §7 command fixtures
-(agt-022..028) already do exactly that, so no `rly-*` fixture repeats it. A
-door whose state lags longer fails those fixtures.
+**C-RLY-3. Reported state does not lag the agent beyond the target's
+`timeouts.wait_s`.** A door polls or streams from its agent; however it does
+so, the state it reports MUST settle within the wait budget the target
+profile declares. This is checked as "the `wait_state` after a command
+succeeds within `timeouts.wait_s`": the §7 command fixtures (agt-022..028)
+already do exactly that, so no `rly-*` fixture repeats it. A door whose state
+lags longer fails those fixtures.
 
 **C-RLY-4. No inbound port on the agent's network.** The door MUST NOT require
 the agent to accept a connection. This is not observable over HTTP, so it is
@@ -318,19 +325,22 @@ without the attestation (absent or `false`) it is a `skip` naming the clause.
 
 | fixture | level | requires | checks |
 |---|---|---|---|
-| rly-001 | MUST | `roles.offline_action` | invoke → 409, `$.error.code` a string, no `instance_id` (503 → note) |
-| rly-002 | SHOULD | `roles.observable_action` | same ids twice → 201, same `instance_id` |
-| rly-003 | MUST | `roles.observable_action` | different `step_instance_id` → 201, different `instance_id` |
+| rly-001 | MUST | `outbound_only`, `roles.offline_action` | invoke → 409 with `$.error.code` = `AGENT_UNAVAILABLE`, no `instance_id` (503 → note, code any string) |
+| rly-002 | SHOULD | `outbound_only`, `roles.observable_action` | same ids twice → 201, same `instance_id` |
+| rly-003 | MUST | `outbound_only`, `roles.observable_action` | different `step_instance_id` → 201, different `instance_id` |
 | rly-004 | MUST | — | `attests: C-RLY-4` → note when attested, else skip |
 
-The reference toy attests C-RLY-4: it is in-process and has no agent
-listener at all, so the attestation is true by construction. rly-004 is
-therefore a `note` against the toy, never a `pass`.
+The reference toy declares `outbound_only` so the `rly-*` fixtures run
+against it, and attests C-RLY-4: it is in-process and has no agent listener
+at all, so the attestation is true by construction. rly-004 is therefore a
+`note` against the toy, never a `pass`.
 
 ## Expected results against the reference toy
 
-Against `targets/toy.target.json` with no defects: 29 `pass`, 3 `skip`
-(agt-060..062), exit code 0. With a toy defect switched on
+Against `targets/toy.target.json` with no defects, the whole category
+(agt-* and rly-*) gives 32 `pass`, 1 `note` (rly-004), 3 `skip`
+(agt-060..062), zero `fail`, exit code 0; the `agt-*` fixtures alone are
+29 `pass`, 3 `skip`. With a toy defect switched on
 (`runner/test/agent-action.test.mjs`):
 
 | defect | fixtures that fail |
@@ -343,4 +353,7 @@ The `rly-*` fixtures (§13, pinned by `runner/test/relay.test.mjs`): rly-001,
 rly-002 and rly-003 `pass`; rly-004 is `note` (`attested: C-RLY-4`); zero
 `fail`, exit code 0. With the toy defect `non-idempotent-invoke` only rly-002
 changes, to `note` (`SHOULD not met`); the `agt-*` outcomes are unchanged
-except agt-015, which records the other D9 variant and still passes.
+except agt-015, which records the other D9 variant (its pin allows `pass` or
+`note`; against the toy it passes either way). Against a target that does
+not declare `outbound_only`, rly-001..003 `skip` (reason names
+`outbound_only`) and rly-004 is still graded by attestation.

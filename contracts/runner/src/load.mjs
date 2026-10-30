@@ -151,6 +151,26 @@ export function lintFixture(obj, file) {
   const requiresList = Array.isArray(requires) ? requires.filter((r) => typeof r === 'string') : [];
   if ('requires' in obj && !Array.isArray(requires)) problem('requires must be an array of strings');
 
+  // A fixture grades what its steps observe; with no steps it would pass from
+  // nothing. The one exception is an attestation fixture, which runs nothing
+  // and is graded from the target's word (note or skip, never pass).
+  if ('steps' in obj && !Array.isArray(obj.steps)) {
+    problem('steps must be an array');
+  } else if ('attests' in obj) {
+    if (typeof obj.attests !== 'string') {
+      problem('attests must be a string clause id (for example "C-RLY-4")');
+    } else {
+      if (Array.isArray(obj.steps) && obj.steps.length > 0) {
+        problem(`an attests fixture runs nothing: steps must be empty (attests "${obj.attests}")`);
+      }
+      for (const phase of ['setup', 'teardown']) {
+        if (phase in obj) problem(`an attests fixture runs nothing: remove ${phase}`);
+      }
+    }
+  } else if (Array.isArray(obj.steps) && obj.steps.length === 0) {
+    problem('steps is empty: a fixture without attests must observe at least one step');
+  }
+
   if (levelOk && level.startsWith(EXTENSION_PREFIX)) {
     const ext = level.slice(EXTENSION_PREFIX.length);
     if (!requiresList.includes(ext)) problem(`an ${level} fixture must list "${ext}" in requires`);
