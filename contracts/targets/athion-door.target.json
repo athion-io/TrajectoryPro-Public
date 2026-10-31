@@ -1,0 +1,22 @@
+{
+  "name": "athion-door",
+  "base_url": "http://127.0.0.1:8090/trajectory/v1",
+  "probe_url": "http://127.0.0.1:8091/conformance/v1",
+  "auth": { "mode": "required", "header": "X-API-Key", "scheme": "" },
+  "capabilities": ["observable_action", "opaque_action", "commands", "sse", "list", "delete", "cors", "outbound_only", "permission_probe", "audit_probe", "connector_probe"],
+  "extensions": [],
+  "roles": {
+    "environment_oid": "env-c1",
+    "observable_action": "act-hold",
+    "opaque_action": "act-opaque",
+    "fast_action": "act-fast",
+    "offline_action": "act-offline",
+    "unknown_action": "act-nope",
+    "guarded_action": "act-guarded",
+    "cors_origin": "http://runtime.test",
+    "audit_scope": "wf-probe-1"
+  },
+  "timeouts": { "wait_s": 15, "sse_s": 15 },
+  "known_failures": {},
+  "attestations": { "C-RLY-4": true }
+}

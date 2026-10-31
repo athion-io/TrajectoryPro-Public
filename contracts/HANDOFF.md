@@ -38,11 +38,22 @@ this branch. No pull request has been opened anywhere.
 | 1–11 | Runner, schemas, four contracts and fixtures, reference toy, HARDENING, REUSE-REPORT | this branch | done |
 | 12 | Golden JCS and hash vectors from primitives | athion-io/athion-apps-sidecar, branch `mfwisely-wisetech-isa113-contracts-proof` | done; vectors copied to `audit-trail/fixtures/vectors/` |
 | 13 | Node cross-check of the golden vectors | this branch | done |
-| 14 | Athion door target and CI proof (pins this branch at `90af2462`) | athion-io/athion-apps-sidecar, same branch | in progress; its target JSON and results file land here later. No results are recorded in this tree. |
+| 14 | Door target and CI proof (pins this branch at `90af2462`) | athion-io/athion-apps-sidecar, same branch | done; recorded here as `targets/athion-door.target.json` and `results/athion-door-83b0fd24.json` (see below) |
 | 15 | HARDENING.md | this branch | done |
 | 16 | REUSE-REPORT.md | this branch | done |
 | 17 | README.md and this file | this branch | done |
 | 18 | Baseline run against the reference Mission Autopilot container | this branch | blocked until someone starts the container; `HARDENING.md` finding 12 is the placeholder |
+
+Recorded results. `results/athion-door-83b0fd24.json` is the report
+artifact of the "contracts proof" CI run 41156346231 on the sidecar branch
+above at commit `83b0fd24`, copied byte for byte. That run checked the
+fixtures at `90af2462` (the report's `fixtures_commit`), not this branch's
+head; no fixture, schema or runner code has changed since (only docs, tests and
+the `engines` field of `runner/package.json`). Totals: 62
+pass, 0 fail, 2 note, 10 skip. `targets/athion-door.target.json` is that
+commit's `services/trajectory-door/contracts/athion-door.target.json`, also
+byte for byte. `runner/test/recorded.test.mjs` checks that every target
+loads and every results file is a complete report with no failures.
 
 Task 18 needs `targets/autopilot-reference.target.json` and a results file;
 neither exists yet. The README says how the container is started
@@ -144,8 +155,8 @@ open question 6 records this. Do not treat them as settled.
 
 ## What is not verified in this tree
 
-- Task 14's door results. The sidecar branch is still in progress; nothing
-  here claims a result for the door.
+- The door results were not re-run from this tree. They are the sidecar
+  CI's report, produced against the fixtures at `90af2462`.
 - Task 18's reference-container results. The container has not been started
   for this work.
 - Nothing about Node versions beyond this: the runner (`bin` and `src`)

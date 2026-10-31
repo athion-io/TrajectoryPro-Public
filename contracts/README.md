@@ -212,7 +212,8 @@ not in this tree yet; see `HANDOFF.md`.
 | `audit-trail/fixtures/vectors/` | Golden JCS and hash vectors |
 | `schema/contract-fixture-schema.json` | JSON Schema for a fixture |
 | `schema/target-schema.json` | JSON Schema for a target profile |
-| `targets/` | Target profiles (`toy.target.json`) |
+| `targets/` | Target profiles (`toy.target.json`, `athion-door.target.json`) |
+| `results/` | Recorded reports, one per run, named `<target>-<commit>.json` |
 | `runner/` | The runner: `bin/trajectory-contracts.mjs`, `src/`, `test/` |
 | `HARDENING.md` | Findings in the reference code, severities, open questions |
 | `REUSE-REPORT.md` | What in the reference code is reusable as-is |
