@@ -1,0 +1,61 @@
+{
+  "test_id": "cfg-103",
+  "name": "live mimic-xml: reload route round-trips the patched file and reads the value back",
+  "category": "config-connector",
+  "level": "MUST",
+  "source": "C-CFG-3",
+  "tags": [
+    "live",
+    "apply",
+    "mimic-xml",
+    "reload"
+  ],
+  "requires": [
+    "connector_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/connector/apply",
+      "probe": true,
+      "body": {
+        "profile": "mimic-xml",
+        "mode": "test",
+        "source": {
+          "kind": "live",
+          "route": "reload"
+        },
+        "changes": [
+          {
+            "platform": "mimic-xml",
+            "item": "LIVE_OBJECT/LIVE_PARAMETER",
+            "from": "0",
+            "to": "1"
+          }
+        ]
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.before_hash",
+            "matches": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "path": "$.data.after_hash",
+            "matches": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "path": "$.data.read_back.ok",
+            "equals": true
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

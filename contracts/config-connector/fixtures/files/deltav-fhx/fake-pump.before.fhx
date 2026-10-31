@@ -1,0 +1,8 @@
+/* synthetic FHX-like text for contract tests; not a vendor file, not a real plant */
+MODULE NAME="FAKE_PUMP_A" {
+  ATTRIBUTE_INSTANCE NAME="SETPOINT" { VALUE { CV=10.0 } }
+  ATTRIBUTE_INSTANCE NAME="HI_LIMIT" { VALUE { CV=90.0 } }
+}
+MODULE NAME="FAKE_PUMP_B" {
+  ATTRIBUTE_INSTANCE NAME="SETPOINT" { VALUE { CV=20.0 } }
+}

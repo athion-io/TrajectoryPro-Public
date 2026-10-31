@@ -1,0 +1,71 @@
+{
+  "test_id": "agt-041",
+  "name": "DELETE /instances/{id} succeeds and a repeat answers 2xx or 404, never 5xx",
+  "category": "agent-action",
+  "level": "SHOULD",
+  "source": "REST-09",
+  "tags": [
+    "delete"
+  ],
+  "requires": [
+    "observable_action",
+    "delete"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    }
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "DELETE",
+      "path": "/instances/{{iid}}",
+      "expect": {
+        "status": {
+          "one_of": [
+            200,
+            202,
+            204
+          ]
+        }
+      }
+    },
+    {
+      "kind": "request",
+      "method": "DELETE",
+      "path": "/instances/{{iid}}",
+      "expect": {
+        "status": {
+          "one_of": [
+            200,
+            202,
+            204,
+            404
+          ]
+        }
+      }
+    }
+  ]
+}

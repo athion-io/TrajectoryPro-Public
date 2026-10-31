@@ -1,0 +1,77 @@
+{
+  "test_id": "cfg-006",
+  "name": "deltav-fhx: a write the system clamps to HI_LIMIT is read back honestly: ok false with the mismatch",
+  "category": "config-connector",
+  "level": "MUST",
+  "source": "C-CFG-2",
+  "tags": [
+    "apply",
+    "read-back",
+    "deltav-fhx"
+  ],
+  "requires": [
+    "connector_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/connector/apply",
+      "probe": true,
+      "body": {
+        "profile": "deltav-fhx",
+        "mode": "test",
+        "file_b64": "Lyogc3ludGhldGljIEZIWC1saWtlIHRleHQgZm9yIGNvbnRyYWN0IHRlc3RzOyBub3QgYSB2ZW5kb3IgZmlsZSwgbm90IGEgcmVhbCBwbGFudCAqLwpNT0RVTEUgTkFNRT0iRkFLRV9QVU1QX0EiIHsKICBBVFRSSUJVVEVfSU5TVEFOQ0UgTkFNRT0iU0VUUE9JTlQiIHsgVkFMVUUgeyBDVj0xMC4wIH0gfQogIEFUVFJJQlVURV9JTlNUQU5DRSBOQU1FPSJISV9MSU1JVCIgeyBWQUxVRSB7IENWPTkwLjAgfSB9Cn0KTU9EVUxFIE5BTUU9IkZBS0VfUFVNUF9CIiB7CiAgQVRUUklCVVRFX0lOU1RBTkNFIE5BTUU9IlNFVFBPSU5UIiB7IFZBTFVFIHsgQ1Y9MjAuMCB9IH0KfQo=",
+        "changes": [
+          {
+            "platform": "deltav-fhx",
+            "item": "FAKE_PUMP_A/SETPOINT",
+            "from": "10.0",
+            "to": "150.0"
+          }
+        ]
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.before_hash",
+            "equals": "sha256:154c8e642c987843e1c064e85ad82bd54af8bf9514872a21b953e07710070442"
+          },
+          {
+            "path": "$.data.after_hash",
+            "not_equals": "sha256:154c8e642c987843e1c064e85ad82bd54af8bf9514872a21b953e07710070442"
+          },
+          {
+            "path": "$.data.read_back.ok",
+            "equals": false
+          },
+          {
+            "path": "$.data.read_back.mismatches",
+            "length_max": 1
+          },
+          {
+            "path": "$.data.read_back.mismatches[1]",
+            "absent": true
+          },
+          {
+            "path": "$.data.read_back.mismatches[0].item",
+            "equals": "FAKE_PUMP_A/SETPOINT"
+          },
+          {
+            "path": "$.data.read_back.mismatches[0].expected",
+            "equals": "150.0"
+          },
+          {
+            "path": "$.data.read_back.mismatches[0].actual",
+            "equals": "90.0"
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

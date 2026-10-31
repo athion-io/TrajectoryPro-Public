@@ -1,0 +1,93 @@
+{
+  "test_id": "rly-003",
+  "name": "An invoke with a different step_instance_id MUST create a different instance: de-duplication keys on the runtime ids, never on the action alone",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "C-RLY-2",
+  "tags": [
+    "relay",
+    "invoke",
+    "retry"
+  ],
+  "requires": [
+    "outbound_only",
+    "observable_action"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "first_iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    }
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}-b",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "second_iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201,
+        "json": [
+          {
+            "path": "$.data.instance_id",
+            "not_equals": "{{first_iid}}"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{first_iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{second_iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

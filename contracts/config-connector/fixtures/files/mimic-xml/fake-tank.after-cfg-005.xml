@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- synthetic XML-like text for contract tests; not a vendor file, not a real plant -->
+<config>
+  <object name="FAKE_TANK_A">
+    <param name="LEVEL_SP">55</param>
+    <param name="ALARM_HI">80</param>
+  </object>
+  <object name="FAKE_TANK_B">
+    <param name="LEVEL_SP">45</param>
+  </object>
+</config>

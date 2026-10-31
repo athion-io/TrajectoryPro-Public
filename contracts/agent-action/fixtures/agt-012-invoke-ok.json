@@ -1,0 +1,55 @@
+{
+  "test_id": "agt-012",
+  "name": "A valid invoke answers 201 with a string data.instance_id",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST-03",
+  "tags": [
+    "invoke"
+  ],
+  "requires": [
+    "observable_action"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201,
+        "json": [
+          {
+            "path": "$.data.instance_id",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "test_id": "agt-014",
+  "name": "GET of an unknown instance answers 404 INSTANCE_NOT_FOUND",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST-04",
+  "tags": [
+    "instance",
+    "envelope"
+  ],
+  "requires": [],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/instances/inst-does-not-exist-{{uniq}}",
+      "expect": {
+        "status": 404,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "INSTANCE_NOT_FOUND"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

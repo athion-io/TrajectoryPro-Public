@@ -1,0 +1,59 @@
+{
+  "test_id": "rly-001",
+  "name": "Invoking an action whose agent is not connected fails fast with 409 AGENT_UNAVAILABLE (503 is tolerated as a note); it never answers 201 and hangs",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "C-RLY-1",
+  "tags": [
+    "relay",
+    "invoke",
+    "offline"
+  ],
+  "requires": [
+    "outbound_only",
+    "offline_action"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.offline_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": []
+      },
+      "expect": {
+        "status": {
+          "one_of": [
+            409
+          ],
+          "note_if": {
+            "one_of": [
+              503
+            ]
+          }
+        },
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "AGENT_UNAVAILABLE",
+            "when_status": [
+              409
+            ]
+          },
+          {
+            "path": "$.error.code",
+            "type": "string"
+          },
+          {
+            "path": "$.data.instance_id",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

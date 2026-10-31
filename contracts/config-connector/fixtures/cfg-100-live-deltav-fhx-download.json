@@ -1,0 +1,61 @@
+{
+  "test_id": "cfg-100",
+  "name": "live deltav-fhx: download route exports the current file and applies one parameter in test mode",
+  "category": "config-connector",
+  "level": "MUST",
+  "source": "C-CFG-3",
+  "tags": [
+    "live",
+    "apply",
+    "deltav-fhx",
+    "download"
+  ],
+  "requires": [
+    "connector_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/connector/apply",
+      "probe": true,
+      "body": {
+        "profile": "deltav-fhx",
+        "mode": "test",
+        "source": {
+          "kind": "live",
+          "route": "download"
+        },
+        "changes": [
+          {
+            "platform": "deltav-fhx",
+            "item": "LIVE_OBJECT/LIVE_PARAMETER",
+            "from": "0",
+            "to": "1"
+          }
+        ]
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.before_hash",
+            "matches": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "path": "$.data.after_hash",
+            "matches": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "path": "$.data.read_back.ok",
+            "equals": true
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

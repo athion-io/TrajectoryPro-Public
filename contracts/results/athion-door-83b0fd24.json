@@ -1,0 +1,1440 @@
+{
+  "target": "athion-door",
+  "runner_version": "0.1.0",
+  "fixtures_commit": "90af2462bde950f9aec976d4402e654e07270d55",
+  "started_at": "2026-10-31T01:39:14.927Z",
+  "totals": {
+    "pass": 62,
+    "fail": 0,
+    "note": 2,
+    "skip": 10
+  },
+  "results": [
+    {
+      "test_id": "agt-001",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/health",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-002",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/capabilities",
+          "status": 401,
+          "code": "UNAUTHORIZED"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-003",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/capabilities",
+          "status": 401,
+          "code": "UNAUTHORIZED"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-004",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/capabilities",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-005",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/capabilities",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/actions/act-opaque/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-75faf3b494c4fdef3736bbb5",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-75faf3b494c4fdef3736bbb5/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-010",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 400,
+          "code": "VALIDATION_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-011",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-nope/invoke",
+          "status": 404,
+          "code": "ACTION_NOT_FOUND"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-012",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-f59a0d47208625d4c0fb4ecf/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-013",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-938c823c67494681d2c18d38",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-938c823c67494681d2c18d38/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-014",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/instances/inst-does-not-exist-5db2b9bc-10",
+          "status": 404,
+          "code": "INSTANCE_NOT_FOUND"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-015",
+      "level": "IMPL-DEFINED",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-3f706fdde18d8c0c4df2a21d/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-3f706fdde18d8c0c4df2a21d/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-020",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-950523f2380a9571f58c9160",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-950523f2380a9571f58c9160/command",
+          "status": 422,
+          "code": "INVALID_COMMAND"
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-950523f2380a9571f58c9160/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-021",
+      "level": "IMPL-DEFINED",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-7bfceab48a47464549b931c1",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-7bfceab48a47464549b931c1/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-7bfceab48a47464549b931c1/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-022",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-442ce05c3b832cf7b9411749",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-442ce05c3b832cf7b9411749/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-442ce05c3b832cf7b9411749",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-442ce05c3b832cf7b9411749/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-442ce05c3b832cf7b9411749/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-023",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-ebf631da2050e8577c74f8eb",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-ebf631da2050e8577c74f8eb/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-ebf631da2050e8577c74f8eb",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-ebf631da2050e8577c74f8eb/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-ebf631da2050e8577c74f8eb",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-ebf631da2050e8577c74f8eb/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-ebf631da2050e8577c74f8eb/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-024",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-e3432d5789630a5969559df0",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-e3432d5789630a5969559df0/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-e3432d5789630a5969559df0",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-e3432d5789630a5969559df0/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-e3432d5789630a5969559df0/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-025",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-dc427e7850f3b03041651760",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-dc427e7850f3b03041651760/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-dc427e7850f3b03041651760",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-dc427e7850f3b03041651760/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-dc427e7850f3b03041651760",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-dc427e7850f3b03041651760/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-dc427e7850f3b03041651760/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-026",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-dcfccfd97fbe026f679241c5",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-dcfccfd97fbe026f679241c5/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-dcfccfd97fbe026f679241c5",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-dcfccfd97fbe026f679241c5/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-dcfccfd97fbe026f679241c5/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-027",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-6f8abc3a5702b8617a45e084",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-6f8abc3a5702b8617a45e084/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-6f8abc3a5702b8617a45e084",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-6f8abc3a5702b8617a45e084/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-6f8abc3a5702b8617a45e084/command",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-6f8abc3a5702b8617a45e084",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-028",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-fast/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-b1612fa1146525ecc69dd813",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-b1612fa1146525ecc69dd813/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-030",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-fbf93de0d1ab11c844ca670c",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-fbf93de0d1ab11c844ca670c/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-fbf93de0d1ab11c844ca670c/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-031",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-7fed034426a284f2dbd6c523",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-7fed034426a284f2dbd6c523/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-7fed034426a284f2dbd6c523/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-7fed034426a284f2dbd6c523/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-032",
+      "level": "IMPL-DEFINED",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-402531cba050307cf90a5677",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-402531cba050307cf90a5677/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-402531cba050307cf90a5677/command",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-033",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-opaque/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-c4c8a8c91900e1ffebd3f882/events",
+          "status": 404,
+          "code": "NO_EVENT_STREAM"
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-c4c8a8c91900e1ffebd3f882/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-034",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-fast/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-cf4764c5c684a4286b3cff6b/events",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances/rai-cf4764c5c684a4286b3cff6b",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-040",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "GET",
+          "path": "/instances?workflow_instance_id=wf-5db2b9bc-26",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-dbb365283903dc9466102aa5/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-041",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "DELETE",
+          "path": "/instances/rai-87217cc76dba6d39b6a6c2d3",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "note",
+      "reason": "SHOULD not met: status 409, expected 200 or 202 or 204"
+    },
+    {
+      "test_id": "agt-050",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "OPTIONS",
+          "path": "/instances",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "OPTIONS",
+          "path": "/instances/5db2b9bc-28/events",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-051",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/../v2/health",
+          "status": 404,
+          "code": "NOT_FOUND"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "agt-060",
+      "level": "EXTENSION:change-guard",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "target does not provide \"change-guard\""
+    },
+    {
+      "test_id": "agt-061",
+      "level": "EXTENSION:change-guard",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "target does not provide \"change-guard\""
+    },
+    {
+      "test_id": "agt-062",
+      "level": "EXTENSION:change-guard",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "target does not provide \"change-guard\""
+    },
+    {
+      "test_id": "agt-070",
+      "level": "EXTENSION:forwarded-identity",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "target does not provide \"forwarded-identity\""
+    },
+    {
+      "test_id": "agt-071",
+      "level": "EXTENSION:forwarded-identity",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "target does not provide \"forwarded-identity\""
+    },
+    {
+      "test_id": "agt-072",
+      "level": "EXTENSION:forwarded-identity",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "target does not provide \"forwarded-identity\""
+    },
+    {
+      "test_id": "aud-001",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/audit/verify",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "aud-002",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/audit/verify",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "aud-003",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/audit/verify",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "aud-004",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/audit/verify",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "aud-005",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/audit/verify",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "aud-006",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/audit/verify",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "aud-010",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "GET",
+          "path": "/audit/export?scope_id=wf-probe-1",
+          "status": 200,
+          "code": null
+        },
+        {
+          "method": "VERIFY",
+          "path": "offline:export",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-001",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-002",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-003",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 409,
+          "code": "STALE_VALUE"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-004",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 400,
+          "code": "ITEM_NOT_FOUND"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-005",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-006",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-007",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 400,
+          "code": "VALIDATION_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-008",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/connector/apply",
+          "status": 409,
+          "code": "STALE_VALUE"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "cfg-100",
+      "level": "MUST",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "live fixture; target has no live_vendor"
+    },
+    {
+      "test_id": "cfg-101",
+      "level": "MUST",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "live fixture; target has no live_vendor"
+    },
+    {
+      "test_id": "cfg-102",
+      "level": "MUST",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "live fixture; target has no live_vendor"
+    },
+    {
+      "test_id": "cfg-103",
+      "level": "MUST",
+      "evidence": [],
+      "outcome": "skip",
+      "reason": "live fixture; target has no live_vendor"
+    },
+    {
+      "test_id": "prm-001",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-002",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-003",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-004",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-005",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-006",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-007",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-008",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-009",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-010",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-011",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-012",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-013",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-014",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-015",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 200,
+          "code": null
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "prm-016",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/permission/decide",
+          "status": 400,
+          "code": "VALIDATION_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "rly-001",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-offline/invoke",
+          "status": 409,
+          "code": "AGENT_UNAVAILABLE"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "rly-002",
+      "level": "SHOULD",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-6fe92e1f83296582a5f235b9/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-6fe92e1f83296582a5f235b9/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "rly-003",
+      "level": "MUST",
+      "evidence": [
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/actions/act-hold/invoke",
+          "status": 201,
+          "code": null
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-4ecbb3a8270a7b70f1ea8ada/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        },
+        {
+          "method": "POST",
+          "path": "/instances/rai-36bd2d3803a017c41db26fdf/command",
+          "status": 409,
+          "code": "INSTANCE_ERROR"
+        }
+      ],
+      "outcome": "pass",
+      "reason": ""
+    },
+    {
+      "test_id": "rly-004",
+      "level": "MUST",
+      "evidence": [
+        {
+          "attestation": "C-RLY-4",
+          "attested": true
+        }
+      ],
+      "outcome": "note",
+      "reason": "attested: C-RLY-4 is declared by the target, not observed by the runner"
+    }
+  ]
+}

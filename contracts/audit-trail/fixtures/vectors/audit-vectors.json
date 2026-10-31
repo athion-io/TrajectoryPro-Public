@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "description": "JCS (RFC 8785) + SHA-256 golden vectors; hash = sha256:hex(sha256(canonical))",
+    "primitives_canon_sha": "c115860f6f1f75a270dc20181e0580f000fa3154",
+    "recipe": "athion-canon/2"
+  },
+  "vectors": [
+    {
+      "canonical": "{}",
+      "hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "input": {},
+      "name": "empty-object"
+    },
+    {
+      "canonical": "{\"a\":1,\"b\":2,\"c\":{\"y\":null,\"z\":true}}",
+      "hash": "sha256:8de4da99ba10a81ad0712ed5ca145e6017393749463cfdafc1a6b16836ad4d1d",
+      "input": {
+        "a": 1,
+        "b": 2,
+        "c": {
+          "y": null,
+          "z": true
+        }
+      },
+      "name": "key-order"
+    },
+    {
+      "canonical": "{\"a\":4,\"z\":2,\"é\":1,\"日本\":3,\"😀\":5}",
+      "hash": "sha256:4c0781d7ad0649dcfc52d4559e7c6452e61d245a57001459389c19683799c381",
+      "input": {
+        "a": 4,
+        "z": 2,
+        "é": 1,
+        "日本": 3,
+        "😀": 5
+      },
+      "name": "unicode-keys"
+    },
+    {
+      "canonical": "{\"s\":\"tab\\tquote\\\"back\\\\slash\\u0001 \"}",
+      "hash": "sha256:050cb10ff3ba08a2cae3f6299452efcc18cdc0a4f0a1110ebc1156ce2d6cee2b",
+      "input": {
+        "s": "tab\tquote\"back\\slash\u0001 "
+      },
+      "name": "unicode-escapes"
+    },
+    {
+      "canonical": "{\"k\":123456789012345,\"m\":100000000000000000000,\"n\":1e+21}",
+      "hash": "sha256:3b9629d79bc25e6b84356aa84542fed8a4993da8a7ed7086198193adfbc4cefd",
+      "input": {
+        "k": 123456789012345,
+        "m": 1e+20,
+        "n": 1e+21
+      },
+      "name": "number-large"
+    },
+    {
+      "canonical": "{\"k\":0.000001,\"m\":1e-7,\"n\":0.1}",
+      "hash": "sha256:35fb4e271dfbac1daab148d0f2caeda719245947c1daf496d98e1b5b11ad0ffc",
+      "input": {
+        "k": 1e-06,
+        "m": 1e-07,
+        "n": 0.1
+      },
+      "name": "number-small"
+    },
+    {
+      "canonical": "{\"k\":[0,0],\"m\":-1.5,\"n\":0}",
+      "hash": "sha256:8f1218324f96e0f802bc2c0e84c38468f234461d242b91cd7eb975ec8950f701",
+      "input": {
+        "k": [
+          0,
+          -0.0
+        ],
+        "m": -1.5,
+        "n": -0.0
+      },
+      "name": "number-negative-zero"
+    },
+    {
+      "canonical": "{\"a\":[[],[[]],[1,[2,[3]]],[{\"x\":[[]]}]]}",
+      "hash": "sha256:2bb7be35e72df7f3b305c21778bc93483955ef4c2756489776830deb2e94e4ab",
+      "input": {
+        "a": [
+          [],
+          [
+            []
+          ],
+          [
+            1,
+            [
+              2,
+              [
+                3
+              ]
+            ]
+          ],
+          [
+            {
+              "x": [
+                []
+              ]
+            }
+          ]
+        ]
+      },
+      "name": "nested-arrays"
+    },
+    {
+      "canonical": "{\"items\":[],\"payload\":{},\"text\":\"\"}",
+      "hash": "sha256:c023028ea11a5a395f1ce11557dc105e3ef2aa1aad3cc659f1daa8b6c67a9bd0",
+      "input": {
+        "items": [],
+        "payload": {},
+        "text": ""
+      },
+      "name": "empty-payload"
+    },
+    {
+      "canonical": "{\"action\":\"workflow.started\",\"actor\":\"u-vector-1\",\"id\":\"ev-001\",\"payload\":{\"steps\":2},\"prev_hash\":\"\",\"reason\":\"golden vector\",\"recipe\":\"athion-canon/2\",\"resource_id\":\"si-1\",\"resource_type\":\"step_instance\",\"rev\":1,\"scope_id\":\"wf-vectors\",\"scope_kind\":\"project\",\"subject_hash\":\"\",\"ts\":\"2026-10-29T12:00:01.000000Z\"}",
+      "hash": "sha256:9c95a14e4bbb4876c0f9bb1f030d14d9130fd0a7dffce8b8b5716088b4e2e93f",
+      "input": {
+        "action": "workflow.started",
+        "actor": "u-vector-1",
+        "id": "ev-001",
+        "payload": {
+          "steps": 2
+        },
+        "prev_hash": "",
+        "reason": "golden vector",
+        "recipe": "athion-canon/2",
+        "resource_id": "si-1",
+        "resource_type": "step_instance",
+        "rev": 1,
+        "scope_id": "wf-vectors",
+        "scope_kind": "project",
+        "subject_hash": "",
+        "ts": "2026-10-29T12:00:01.000000Z"
+      },
+      "name": "event-genesis"
+    },
+    {
+      "canonical": "{\"action\":\"step.invoked\",\"actor\":\"u-vector-1\",\"id\":\"ev-002\",\"payload\":{},\"prev_hash\":\"sha256:9c95a14e4bbb4876c0f9bb1f030d14d9130fd0a7dffce8b8b5716088b4e2e93f\",\"reason\":\"golden vector\",\"recipe\":\"athion-canon/2\",\"resource_id\":\"si-2\",\"resource_type\":\"step_instance\",\"rev\":1,\"scope_id\":\"wf-vectors\",\"scope_kind\":\"project\",\"subject_hash\":\"\",\"ts\":\"2026-10-29T12:00:02.000000Z\"}",
+      "hash": "sha256:619a00a157af8365c160a204cdfdfb19f12097566c15a301fb40818aab59e68f",
+      "input": {
+        "action": "step.invoked",
+        "actor": "u-vector-1",
+        "id": "ev-002",
+        "payload": {},
+        "prev_hash": "sha256:9c95a14e4bbb4876c0f9bb1f030d14d9130fd0a7dffce8b8b5716088b4e2e93f",
+        "reason": "golden vector",
+        "recipe": "athion-canon/2",
+        "resource_id": "si-2",
+        "resource_type": "step_instance",
+        "rev": 1,
+        "scope_id": "wf-vectors",
+        "scope_kind": "project",
+        "subject_hash": "",
+        "ts": "2026-10-29T12:00:02.000000Z"
+      },
+      "name": "event-linked-empty-payload"
+    },
+    {
+      "canonical": "{\"action\":\"step.completed\",\"actor\":\"u-vector-1\",\"id\":\"ev-003\",\"payload\":{\"delta\":0,\"values\":[[1,2],[0.1,1e+21]],\"ñame\":\"Zürich ✓\"},\"prev_hash\":\"sha256:619a00a157af8365c160a204cdfdfb19f12097566c15a301fb40818aab59e68f\",\"reason\":\"golden vector\",\"recipe\":\"athion-canon/2\",\"resource_id\":\"si-3\",\"resource_type\":\"step_instance\",\"rev\":1,\"scope_id\":\"wf-vectors\",\"scope_kind\":\"project\",\"subject_hash\":\"\",\"ts\":\"2026-10-29T12:00:03.000000Z\"}",
+      "hash": "sha256:3873e2b6020a0b625329b2c89e61c56fbd6d5bd5e6b23df8f069d837814f4c0b",
+      "input": {
+        "action": "step.completed",
+        "actor": "u-vector-1",
+        "id": "ev-003",
+        "payload": {
+          "delta": -0.0,
+          "values": [
+            [
+              1,
+              2
+            ],
+            [
+              0.1,
+              1e+21
+            ]
+          ],
+          "ñame": "Zürich ✓"
+        },
+        "prev_hash": "sha256:619a00a157af8365c160a204cdfdfb19f12097566c15a301fb40818aab59e68f",
+        "reason": "golden vector",
+        "recipe": "athion-canon/2",
+        "resource_id": "si-3",
+        "resource_type": "step_instance",
+        "rev": 1,
+        "scope_id": "wf-vectors",
+        "scope_kind": "project",
+        "subject_hash": "",
+        "ts": "2026-10-29T12:00:03.000000Z"
+      },
+      "name": "event-linked-unicode-numbers"
+    }
+  ]
+}

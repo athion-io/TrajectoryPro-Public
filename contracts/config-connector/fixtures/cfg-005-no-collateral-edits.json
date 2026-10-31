@@ -1,0 +1,65 @@
+{
+  "test_id": "cfg-005",
+  "name": "mimic-xml: patching LEVEL_SP on FAKE_TANK_B leaves the same-named parameter on FAKE_TANK_A and every other byte untouched",
+  "category": "config-connector",
+  "level": "MUST",
+  "source": "C-CFG-4",
+  "tags": [
+    "apply",
+    "collateral",
+    "mimic-xml"
+  ],
+  "requires": [
+    "connector_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/connector/apply",
+      "probe": true,
+      "body": {
+        "profile": "mimic-xml",
+        "mode": "test",
+        "file_b64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCEtLSBzeW50aGV0aWMgWE1MLWxpa2UgdGV4dCBmb3IgY29udHJhY3QgdGVzdHM7IG5vdCBhIHZlbmRvciBmaWxlLCBub3QgYSByZWFsIHBsYW50IC0tPgo8Y29uZmlnPgogIDxvYmplY3QgbmFtZT0iRkFLRV9UQU5LX0EiPgogICAgPHBhcmFtIG5hbWU9IkxFVkVMX1NQIj41NTwvcGFyYW0+CiAgICA8cGFyYW0gbmFtZT0iQUxBUk1fSEkiPjgwPC9wYXJhbT4KICA8L29iamVjdD4KICA8b2JqZWN0IG5hbWU9IkZBS0VfVEFOS19CIj4KICAgIDxwYXJhbSBuYW1lPSJMRVZFTF9TUCI+NDA8L3BhcmFtPgogIDwvb2JqZWN0Pgo8L2NvbmZpZz4K",
+        "changes": [
+          {
+            "platform": "mimic-xml",
+            "item": "FAKE_TANK_B/LEVEL_SP",
+            "from": "40",
+            "to": "45"
+          }
+        ]
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.before_hash",
+            "equals": "sha256:0f2faaf5e19da758602ada45b803258ce29ffbb9ddfa7016135921341c847abf"
+          },
+          {
+            "path": "$.data.after_b64",
+            "equals": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCEtLSBzeW50aGV0aWMgWE1MLWxpa2UgdGV4dCBmb3IgY29udHJhY3QgdGVzdHM7IG5vdCBhIHZlbmRvciBmaWxlLCBub3QgYSByZWFsIHBsYW50IC0tPgo8Y29uZmlnPgogIDxvYmplY3QgbmFtZT0iRkFLRV9UQU5LX0EiPgogICAgPHBhcmFtIG5hbWU9IkxFVkVMX1NQIj41NTwvcGFyYW0+CiAgICA8cGFyYW0gbmFtZT0iQUxBUk1fSEkiPjgwPC9wYXJhbT4KICA8L29iamVjdD4KICA8b2JqZWN0IG5hbWU9IkZBS0VfVEFOS19CIj4KICAgIDxwYXJhbSBuYW1lPSJMRVZFTF9TUCI+NDU8L3BhcmFtPgogIDwvb2JqZWN0Pgo8L2NvbmZpZz4K"
+          },
+          {
+            "path": "$.data.after_hash",
+            "equals": "sha256:31da288f3986aa3149cfcf0c36c014927b9a72d540afe7ac3ddcfb8f2a7f2192"
+          },
+          {
+            "path": "$.data.read_back.ok",
+            "equals": true
+          },
+          {
+            "path": "$.data.read_back.mismatches",
+            "equals": []
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

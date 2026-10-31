@@ -1,0 +1,44 @@
+{
+  "test_id": "aud-002",
+  "name": "POST /audit/verify reports altered at the event whose content changed after hashing",
+  "category": "audit-trail",
+  "level": "MUST",
+  "source": "C-AUD-3",
+  "tags": [
+    "audit",
+    "probe"
+  ],
+  "requires": [
+    "audit_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/audit/verify",
+      "probe": true,
+      "trail": "audit-trail/fixtures/trails/payload-altered.jsonl",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.issues",
+            "type": "array"
+          },
+          {
+            "path": "$.data.issues[0].index",
+            "equals": 2
+          },
+          {
+            "path": "$.data.issues[0].issue",
+            "equals": "altered"
+          },
+          {
+            "path": "$.data.issues[1]",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

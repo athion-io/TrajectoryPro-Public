@@ -1,0 +1,139 @@
+{
+  "test_id": "agt-034",
+  "name": "The terminal state_change is the last frame and an output frame precedes it when outputs exist",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST-06",
+  "tags": [
+    "sse",
+    "terminal"
+  ],
+  "requires": [
+    "fast_action",
+    "sse"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.fast_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    }
+  ],
+  "steps": [
+    {
+      "kind": "sse_read",
+      "id": "sse",
+      "instance": "{{iid}}",
+      "last_event_id": 0,
+      "until_state": [
+        "COMPLETED",
+        "ABORTED",
+        "STOPPED"
+      ],
+      "expect": {
+        "json": [
+          {
+            "path": "$.ended",
+            "equals": "state"
+          },
+          {
+            "path": "$.events[*].event",
+            "in": [
+              "state_change",
+              "output",
+              "log",
+              "heartbeat"
+            ]
+          },
+          {
+            "path": "$.events[*].data.outputs",
+            "type": "array"
+          },
+          {
+            "path": "$.events[*].data.outputs[*].name",
+            "type": "string"
+          },
+          {
+            "path": "$.events[*].data.state",
+            "in": [
+              "POSTED",
+              "RECEIVED",
+              "IN_PROGRESS",
+              "STARTING",
+              "EXECUTING",
+              "COMPLETING",
+              "COMPLETED",
+              "PAUSING",
+              "PAUSED",
+              "RESUMING",
+              "HOLDING",
+              "HELD",
+              "UNHOLDING",
+              "STOPPING",
+              "STOPPED",
+              "ABORTING",
+              "ABORTED"
+            ]
+          },
+          {
+            "path": "$.events[-1].event",
+            "equals": "state_change"
+          },
+          {
+            "path": "$.events[-1].data.state",
+            "in": [
+              "COMPLETED",
+              "ABORTED",
+              "STOPPED"
+            ]
+          },
+          {
+            "path": "$.events[-2].event",
+            "equals": "output"
+          },
+          {
+            "path": "$.events[-2].data.outputs[*].name",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/instances/{{iid}}",
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.state.current",
+            "in": [
+              "COMPLETED",
+              "ABORTED",
+              "STOPPED"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

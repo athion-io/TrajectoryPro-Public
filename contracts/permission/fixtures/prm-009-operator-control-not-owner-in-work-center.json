@@ -1,0 +1,56 @@
+{
+  "test_id": "prm-009",
+  "name": "In their own work center an operator may control only instances they own: another owner gives NOT_OWNER",
+  "category": "permission",
+  "level": "MUST",
+  "source": "C-PRM-2",
+  "tags": [
+    "ownership",
+    "control"
+  ],
+  "requires": [
+    "permission_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/permission/decide",
+      "probe": true,
+      "body": {
+        "subject": {
+          "kind": "user",
+          "id": "u1",
+          "roles": [
+            "operator"
+          ],
+          "work_center": "wc-a"
+        },
+        "verb": "control:abort",
+        "resource": {
+          "work_center": "wc-a",
+          "workflow_instance": "wi-1",
+          "owner": "u2"
+        },
+        "grants": []
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.allowed",
+            "equals": false
+          },
+          {
+            "path": "$.data.reason",
+            "equals": "NOT_OWNER"
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

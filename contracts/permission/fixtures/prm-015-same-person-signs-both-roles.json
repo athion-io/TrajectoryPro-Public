@@ -1,0 +1,79 @@
+{
+  "test_id": "prm-015",
+  "name": "One person signing for both quorum roles is denied with SAME_PERSON_TWICE",
+  "category": "permission",
+  "level": "MUST",
+  "source": "C-PRM-4",
+  "tags": [
+    "approval",
+    "separation-of-duties"
+  ],
+  "requires": [
+    "permission_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/permission/decide",
+      "probe": true,
+      "body": {
+        "subject": {
+          "kind": "user",
+          "id": "u1",
+          "roles": [
+            "operations_lead"
+          ],
+          "work_center": "wc-a"
+        },
+        "verb": "approve_change",
+        "resource": {
+          "work_center": "wc-a",
+          "workflow_instance": "wi-1",
+          "change": {
+            "author": "u3",
+            "approvals": [
+              {
+                "by": "u4",
+                "role": "process_engineer"
+              },
+              {
+                "by": "u4",
+                "role": "operations_lead"
+              }
+            ]
+          }
+        },
+        "grants": [],
+        "policy": {
+          "quorum": [
+            {
+              "role": "process_engineer"
+            },
+            {
+              "role": "operations_lead"
+            }
+          ],
+          "separation_of_duties": "strict"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "json": [
+          {
+            "path": "$.data.allowed",
+            "equals": false
+          },
+          {
+            "path": "$.data.reason",
+            "equals": "SAME_PERSON_TWICE"
+          },
+          {
+            "path": "$.error",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://athion.io/schemas/trajectory-contracts/contract-fixture.json",
+  "title": "Trajectory Contract Fixture",
+  "description": "One contract fixture: an HTTP scenario the runner plays against an implementation. Copyright 2026 Athion, Inc. Licensed under the Apache License, Version 2.0. This schema documents the shape for readers in any language; runner/src/load.mjs (lintFixture) is the executable check and must list the same required keys.",
+  "type": "object",
+  "required": ["test_id", "name", "category", "level", "tags", "requires", "steps"],
+  "properties": {
+    "test_id": {
+      "type": "string",
+      "pattern": "^(agt|rly|prm|aud|cfg)-[a-z0-9-]+$",
+      "description": "Unique id and the file name prefix: the file is <test_id>-<slug>.json. Prefixes: agt- (agent action), rly- (outbound-only relay), prm- (permission), aud- (audit trail), cfg- (config connector)."
+    },
+    "name": {
+      "type": "string",
+      "description": "Plain-English statement of what the fixture checks."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["agent-action", "permission", "audit-trail", "config-connector"],
+      "description": "The contract this fixture belongs to; also the directory it lives in."
+    },
+    "level": {
+      "type": "string",
+      "pattern": "^(MUST|SHOULD|IMPL-DEFINED|EXTENSION:[a-z0-9-]+)$",
+      "description": "MUST: a failure fails the run. SHOULD: a failure is reported as a note. IMPL-DEFINED: allowed variance, reported as a note. EXTENSION:<name>: skipped unless the target declares the extension."
+    },
+    "source": {
+      "type": "string",
+      "description": "Where the requirement comes from, for example \"REST-05\" (a docs/REST_Protocol.md section) or \"C-AUD-3\" (a contract clause). Required when level is MUST or SHOULD."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form tags for filtering, for example \"invoke\", \"sse\", \"live\"."
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Capabilities, roles and extensions the target must declare for this fixture to run; otherwise it is skipped. Every {{roles.X}} placeholder in the fixture must name X here, or a capability listed here must imply it (see CAPABILITY_ROLES in runner/src/load.mjs). environment_oid is always available."
+    },
+    "attests": {
+      "type": "string",
+      "description": "A clause id (for example \"C-RLY-4\") that cannot be observed over HTTP. The runner does not run the fixture's steps (the linter requires steps to be empty and no setup or teardown): when the target's attestations map has the clause set to true the result is note with reason \"attested: <clause> ...\"; otherwise it is skip. Never a pass."
+    },
+    "setup": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "description": "Steps run before the checked steps. Their expectations are not graded unless they fail outright."
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "description": "The checked steps. Each step's expect block is graded at the fixture's level. Must not be empty unless attests is set."
+    },
+    "expected": {
+      "type": "object",
+      "description": "Reserved. Not evaluated by the runner; only each step's expect block is graded."
+    },
+    "teardown": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" },
+      "description": "Steps run after the checked steps, even on failure. Usually marked tolerate: true."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "level": { "enum": ["MUST", "SHOULD"] } } },
+      "then": { "required": ["source"] }
+    }
+  ],
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": ["kind"],
+      "description": "One step. Placeholders: {{roles.X}} (from the target's roles map), {{uniq}} (a per-run unique token), {{name}} (a value captured by an earlier step).",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["request", "wait_state", "sse_read", "capture", "audit_verify"],
+          "description": "request: one HTTP call. wait_state: poll an instance until it reaches one of the states. sse_read: read SSE frames for a bounded time. capture: pull values out of an earlier response. audit_verify: run the offline audit verifier (C-AUD-3..6) over the NDJSON body of the request step named by from; the step's response body is {issues, events} so expect can read $.issues."
+        },
+        "id": { "type": "string", "description": "Optional label; a capture step refers to an earlier request step by its id." },
+        "from": { "type": "string", "description": "For capture and audit_verify steps: the id of the request step whose response to read." },
+        "trail": { "type": "string", "description": "request: path of an NDJSON audit trail relative to the contracts root (for example audit-trail/fixtures/trails/good.jsonl); its events are sent as body.events." },
+        "method": { "type": "string", "description": "HTTP method, for request steps." },
+        "path": { "type": "string", "description": "Path relative to the target's base_url (or probe_url when probe is true)." },
+        "probe": { "type": "boolean", "description": "Send this request to probe_url instead of base_url." },
+        "auth": { "type": "boolean", "description": "false omits the target's auth header on this request (for unauthenticated-call fixtures). Default true." },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "body": { "description": "JSON request body." },
+        "capture": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "name -> JSONPath into the response body; the value becomes {{name}} for later steps."
+        },
+        "expect": { "$ref": "#/$defs/expect" },
+        "tolerate": { "type": "boolean", "description": "Do not fail the fixture if this step errors (used in teardown)." },
+        "instance": { "type": "string", "description": "Instance id for wait_state and sse_read." },
+        "states": { "type": "array", "items": { "type": "string" }, "description": "States that satisfy a wait_state step." },
+        "timeout_s": { "type": "number", "description": "Per-step override of the target's wait_s / sse_s." },
+        "last_event_id": { "type": ["string", "number"], "description": "sse_read: sent as the Last-Event-ID header to resume a stream." },
+        "max": { "type": "integer", "minimum": 1, "description": "sse_read: stop after this many events." },
+        "until_state": { "type": "array", "items": { "type": "string" }, "description": "sse_read: stop after a state_change into one of these states." },
+        "capture_events": { "type": "string", "description": "sse_read: name of the var that receives the events array. The step's response body is {events, ended} where ended is count | state | timeout | end, so expect and capture can read $.events and $.ended." }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "description": "Expectations on a response. See runner/src/assert.mjs.",
+      "properties": {
+        "status": {
+          "description": "An integer, or {one_of: [..], note_if: {one_of: [..] | range: [lo, hi]}} where note_if statuses give a note instead of a failure.",
+          "oneOf": [
+            { "type": "integer" },
+            {
+              "type": "object",
+              "properties": {
+                "one_of": { "type": "array", "items": { "type": "integer" } },
+                "note_if": {
+                  "type": "object",
+                  "properties": {
+                    "one_of": { "type": "array", "items": { "type": "integer" } },
+                    "range": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "json": {
+          "type": "array",
+          "description": "Checks on the JSON body. path is a small JSONPath subset: $, .key, [n], [-n] (from the end), [*]. Values in the item (equals, in, where.equals, ...) may use {{var}} placeholders; they are resolved from captured variables before grading.",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "where": {
+                "type": "object",
+                "required": ["path", "equals"],
+                "properties": {
+                  "path": { "type": "string", "description": "JSONPath relative to each element reached by path (starts with $)." },
+                  "equals": {}
+                },
+                "description": "Keeps only the elements reached by path whose relative where.path yields exactly where.equals. Applied before select and the operators."
+              },
+              "select": { "type": "string", "description": "JSONPath relative to each (kept) element; the operators then grade what it reaches." },
+              "when_status": {
+                "type": "array",
+                "items": { "type": "integer" },
+                "description": "Grade this item only when the response status is one of these; any other status passes the item. Lets a body detail be pinned on the MUST status while a note_if status stays free."
+              },
+              "present": { "type": "boolean" },
+              "absent": { "type": "boolean" },
+              "equals": {},
+              "not_equals": { "description": "Fails when the value at path deeply equals this (for example a captured {{first_iid}}). Nothing at the path is a failure, as for equals." },
+              "type": { "type": "string" },
+              "in": { "type": "array" },
+              "matches": { "type": "string", "description": "A regular expression." },
+              "length_max": { "type": "integer" }
+            }
+          }
+        },
+        "headers": {
+          "type": "object",
+          "description": "Checks on response headers, keyed by header name.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "present": { "type": "boolean" },
+              "equals": { "type": "string" },
+              "contains_token": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

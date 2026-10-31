@@ -1,0 +1,85 @@
+{
+  "test_id": "agt-033",
+  "name": "The instance stream of an opaque instance is refused with a 4xx error envelope",
+  "category": "agent-action",
+  "level": "SHOULD",
+  "source": "REST §3.3",
+  "tags": [
+    "sse",
+    "opaque"
+  ],
+  "requires": [
+    "opaque_action",
+    "sse"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.opaque_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    }
+  ],
+  "steps": [
+    {
+      "kind": "sse_read",
+      "id": "sse",
+      "instance": "{{iid}}",
+      "until_state": [
+        "COMPLETED",
+        "ABORTED",
+        "STOPPED"
+      ],
+      "timeout_s": 1,
+      "expect": {
+        "status": {
+          "one_of": [
+            400,
+            403,
+            404,
+            405,
+            406,
+            409,
+            410,
+            422
+          ]
+        },
+        "json": [
+          {
+            "path": "$.error.code",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

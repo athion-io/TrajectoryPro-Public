@@ -1,0 +1,102 @@
+{
+  "test_id": "agt-032",
+  "name": "The earliest replayable state_change carries a previous_state that is null or canonical (D11)",
+  "category": "agent-action",
+  "level": "IMPL-DEFINED",
+  "source": "D11",
+  "tags": [
+    "sse"
+  ],
+  "requires": [
+    "observable_action",
+    "sse"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "EXECUTING"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "kind": "sse_read",
+      "id": "sse",
+      "instance": "{{iid}}",
+      "last_event_id": 0,
+      "max": 1,
+      "expect": {
+        "json": [
+          {
+            "path": "$.ended",
+            "equals": "count"
+          },
+          {
+            "path": "$.events[0].event",
+            "equals": "state_change"
+          },
+          {
+            "path": "$.events[0].data.previous_state",
+            "in": [
+              null,
+              "POSTED",
+              "RECEIVED",
+              "IN_PROGRESS",
+              "STARTING",
+              "EXECUTING",
+              "COMPLETING",
+              "COMPLETED",
+              "PAUSING",
+              "PAUSED",
+              "RESUMING",
+              "HOLDING",
+              "HELD",
+              "UNHOLDING",
+              "STOPPING",
+              "STOPPED",
+              "ABORTING",
+              "ABORTED"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

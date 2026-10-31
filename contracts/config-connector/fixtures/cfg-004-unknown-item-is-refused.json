@@ -1,0 +1,52 @@
+{
+  "test_id": "cfg-004",
+  "name": "A change naming an item the file does not contain is refused 400 ITEM_NOT_FOUND",
+  "category": "config-connector",
+  "level": "MUST",
+  "source": "C-CFG-1",
+  "tags": [
+    "apply",
+    "deltav-fhx"
+  ],
+  "requires": [
+    "connector_probe"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/connector/apply",
+      "probe": true,
+      "body": {
+        "profile": "deltav-fhx",
+        "mode": "test",
+        "file_b64": "Lyogc3ludGhldGljIEZIWC1saWtlIHRleHQgZm9yIGNvbnRyYWN0IHRlc3RzOyBub3QgYSB2ZW5kb3IgZmlsZSwgbm90IGEgcmVhbCBwbGFudCAqLwpNT0RVTEUgTkFNRT0iRkFLRV9QVU1QX0EiIHsKICBBVFRSSUJVVEVfSU5TVEFOQ0UgTkFNRT0iU0VUUE9JTlQiIHsgVkFMVUUgeyBDVj0xMC4wIH0gfQogIEFUVFJJQlVURV9JTlNUQU5DRSBOQU1FPSJISV9MSU1JVCIgeyBWQUxVRSB7IENWPTkwLjAgfSB9Cn0KTU9EVUxFIE5BTUU9IkZBS0VfUFVNUF9CIiB7CiAgQVRUUklCVVRFX0lOU1RBTkNFIE5BTUU9IlNFVFBPSU5UIiB7IFZBTFVFIHsgQ1Y9MjAuMCB9IH0KfQo=",
+        "changes": [
+          {
+            "platform": "deltav-fhx",
+            "item": "FAKE_PUMP_Z/SETPOINT",
+            "from": "10.0",
+            "to": "12.5"
+          }
+        ]
+      },
+      "expect": {
+        "status": 400,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "ITEM_NOT_FOUND"
+          },
+          {
+            "path": "$.error.details.item",
+            "equals": "FAKE_PUMP_Z/SETPOINT"
+          },
+          {
+            "path": "$.data",
+            "absent": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "test_id": "agt-060",
+  "name": "A guarded action invoked without an approval answers 400 CHANGE_NOT_APPROVED",
+  "category": "agent-action",
+  "level": "EXTENSION:change-guard",
+  "tags": [
+    "change-guard",
+    "invoke"
+  ],
+  "requires": [
+    "change-guard",
+    "guarded_action"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.guarded_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "expect": {
+        "status": 400,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "CHANGE_NOT_APPROVED"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

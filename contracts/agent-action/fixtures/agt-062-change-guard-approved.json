@@ -1,0 +1,61 @@
+{
+  "test_id": "agt-062",
+  "name": "A guarded action invoked with a matching approval answers 201",
+  "category": "agent-action",
+  "level": "EXTENSION:change-guard",
+  "tags": [
+    "change-guard",
+    "invoke"
+  ],
+  "requires": [
+    "change-guard",
+    "guarded_action",
+    "guarded_change_hash"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.guarded_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ],
+        "change_approval": {
+          "approved": true,
+          "change_hash": "{{roles.guarded_change_hash}}"
+        }
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201,
+        "json": [
+          {
+            "path": "$.data.instance_id",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}

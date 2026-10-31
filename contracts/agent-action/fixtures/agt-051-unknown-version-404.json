@@ -1,0 +1,22 @@
+{
+  "test_id": "agt-051",
+  "name": "A request to /trajectory/v2/health answers 404",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST §5.4",
+  "tags": [
+    "versioning"
+  ],
+  "requires": [],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "path": "/../v2/health",
+      "auth": false,
+      "expect": {
+        "status": 404
+      }
+    }
+  ]
+}

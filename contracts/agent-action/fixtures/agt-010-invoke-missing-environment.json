@@ -1,0 +1,40 @@
+{
+  "test_id": "agt-010",
+  "name": "Invoke without environment_oid answers 400 VALIDATION_ERROR",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST-03",
+  "tags": [
+    "invoke",
+    "envelope"
+  ],
+  "requires": [
+    "observable_action"
+  ],
+  "steps": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": []
+      },
+      "expect": {
+        "status": 400,
+        "json": [
+          {
+            "path": "$.error.code",
+            "equals": "VALIDATION_ERROR"
+          },
+          {
+            "path": "$.error.message",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

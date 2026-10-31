@@ -1,0 +1,120 @@
+{
+  "test_id": "agt-030",
+  "name": "The instance stream delivers state_change frames with integer ids and a JSON object data payload",
+  "category": "agent-action",
+  "level": "MUST",
+  "source": "REST-06",
+  "tags": [
+    "sse"
+  ],
+  "requires": [
+    "observable_action",
+    "sse"
+  ],
+  "setup": [
+    {
+      "kind": "request",
+      "id": "invoke",
+      "method": "POST",
+      "path": "/actions/{{roles.observable_action}}/invoke",
+      "body": {
+        "environment_oid": "{{roles.environment_oid}}",
+        "workflow_instance_id": "wf-{{uniq}}",
+        "step_instance_id": "step-{{uniq}}",
+        "step_oid": "step-oid-{{uniq}}",
+        "input_parameters": [
+          {
+            "name": "greeting",
+            "value": "hello"
+          }
+        ]
+      },
+      "capture": {
+        "iid": "$.data.instance_id"
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "kind": "wait_state",
+      "instance": "{{iid}}",
+      "states": [
+        "EXECUTING"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "kind": "sse_read",
+      "id": "sse",
+      "instance": "{{iid}}",
+      "last_event_id": 0,
+      "until_state": [
+        "EXECUTING"
+      ],
+      "expect": {
+        "json": [
+          {
+            "path": "$.ended",
+            "equals": "state"
+          },
+          {
+            "path": "$.events[*].id",
+            "type": "integer"
+          },
+          {
+            "path": "$.events[*].event",
+            "in": [
+              "state_change",
+              "output",
+              "log",
+              "heartbeat"
+            ]
+          },
+          {
+            "path": "$.events[*].data",
+            "type": "object"
+          },
+          {
+            "path": "$.events[*].data.instance_id",
+            "type": "string"
+          },
+          {
+            "path": "$.events[*].data.state",
+            "in": [
+              "POSTED",
+              "RECEIVED",
+              "IN_PROGRESS",
+              "STARTING",
+              "EXECUTING",
+              "COMPLETING",
+              "COMPLETED",
+              "PAUSING",
+              "PAUSED",
+              "RESUMING",
+              "HOLDING",
+              "HELD",
+              "UNHOLDING",
+              "STOPPING",
+              "STOPPED",
+              "ABORTING",
+              "ABORTED"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "kind": "request",
+      "method": "POST",
+      "path": "/instances/{{iid}}/command",
+      "body": {
+        "command": "ABORT"
+      },
+      "tolerate": true
+    }
+  ]
+}
