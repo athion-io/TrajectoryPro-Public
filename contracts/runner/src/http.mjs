@@ -92,7 +92,8 @@ export function buildRequest(target, step, vars, apiKey) {
     headers.set(name, String(value));
   }
 
-  const init = { method, headers };
+  // fetch strips Authorization on a cross-origin redirect but not custom headers like X-API-Key.
+  const init = { method, headers, redirect: 'manual' };
   if (body !== undefined) init.body = body;
   return { url, init, path };
 }

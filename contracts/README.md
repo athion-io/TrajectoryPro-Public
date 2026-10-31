@@ -88,7 +88,7 @@ Secrets are never read from a target file. They come from the environment:
 
 | Variable | Used for |
 |---|---|
-| `CONTRACTS_API_KEY` | Sent as the target's auth header (`auth.header`, default `X-API-Key`). Required when the target has `auth.mode: "required"`. |
+| `CONTRACTS_API_KEY` | Sent as the target's auth header (`auth.header`, default `X-API-Key`). Required when the target has `auth.mode: "required"`. The runner does not follow redirects, so the key goes only to `base_url` or `probe_url`; over plain `http://` it is sent unencrypted, so use `https://` for anything not on this machine. |
 | `CONTRACTS_USER_TOKEN` | `forwarded-identity` user token with the grant (`{{user_token}}`). |
 | `CONTRACTS_UNGRANTED_USER_TOKEN` | A valid user token without the grant (`{{ungranted_user_token}}`). |
 
@@ -147,7 +147,7 @@ supports. The schema is `schema/target-schema.json`;
 | Key | Required | Meaning |
 |---|---|---|
 | `name` | yes | Short name, printed in the summary and report. |
-| `base_url` | yes | The `/trajectory/v1` base, for example `http://localhost:3002/trajectory/v1`. |
+| `base_url` | yes | The `/trajectory/v1` base, an `http://` or `https://` URL, for example `http://localhost:3002/trajectory/v1`. |
 | `auth` | yes | `{ "mode": "none" }` or `{ "mode": "required", "header": "X-API-Key", "scheme": "" }`. `header` defaults to `X-API-Key`; a non-empty `scheme` is put in front of the key. |
 | `capabilities` | yes | What the target supports; see below. |
 | `roles` | yes | Named identifiers the fixtures use through `{{roles.<name>}}`. `environment_oid` is always required. |

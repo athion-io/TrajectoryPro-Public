@@ -272,6 +272,17 @@ export async function loadTarget(filePath) {
   const missing = TARGET_REQUIRED_KEYS.filter((k) => !(k in obj));
   if (missing.length > 0) problem(`missing required key(s): ${missing.join(', ')}`);
 
+  for (const key of ['base_url', 'probe_url']) {
+    if (!(key in obj)) continue;
+    let ok = false;
+    try {
+      ok = typeof obj[key] === 'string' && ['http:', 'https:'].includes(new URL(obj[key]).protocol);
+    } catch {
+      ok = false;
+    }
+    if (!ok) problem(`${key} must be an http:// or https:// URL`);
+  }
+
   const capabilities = Array.isArray(obj.capabilities) ? obj.capabilities : [];
   if ('capabilities' in obj && !Array.isArray(obj.capabilities)) problem('capabilities must be an array');
   const roles = obj.roles && typeof obj.roles === 'object' && !Array.isArray(obj.roles) ? obj.roles : {};
