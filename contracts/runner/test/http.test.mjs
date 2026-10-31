@@ -73,6 +73,11 @@ describe('buildRequest', () => {
     assert.deepEqual(JSON.parse(init.body), { environment_oid: 'env-1', wf: 'u1-wf' });
   });
 
+  test('redirects are not followed, so the key never reaches another host', () => {
+    const { init } = buildRequest(target(), { kind: 'request', path: '/x' }, vars, 'k');
+    assert.equal(init.redirect, 'manual');
+  });
+
   test('GET is the default and has no body or content-type', () => {
     const { init } = buildRequest(target(), { kind: 'request', path: '/instances/{{iid}}' }, vars, 'k');
     assert.equal(init.method, 'GET');

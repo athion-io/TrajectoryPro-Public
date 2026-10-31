@@ -343,6 +343,18 @@ describe('loadTarget', () => {
     assert.match(err.problems[0], /sse/);
   });
 
+  for (const [key, bad] of [['base_url', 42], ['base_url', 'not a url'], ['base_url', 'file:///etc/x'], ['probe_url', 'ftp://h/x']]) {
+    test(`a ${key} of ${JSON.stringify(bad)} is rejected`, async () => {
+      const t = validTarget();
+      t[key] = bad;
+      await assert.rejects(loadTarget(writeTarget(t)), (e) => {
+        assert.ok(e instanceof LintError);
+        assert.ok(e.problems.some((p) => p.includes(key) && /http/.test(p)));
+        return true;
+      });
+    });
+  }
+
   test('an unknown capability is rejected', async () => {
     const t = validTarget();
     t.capabilities.push('teleport');
